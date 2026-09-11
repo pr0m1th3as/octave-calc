@@ -27,14 +27,13 @@ whether anyone wants Calc to call Octave at all.
 
 ## What it will need, once there is something to install
 
-Three things have to line up on the user's machine:
+Two things have to line up on the user's machine:
 
 1. LibreOffice, with this extension installed.
-2. GNU Octave on `PATH`.
-3. The `devtools` package installed in that Octave, plus whatever packages the
-   user's own functions rely on.
+2. GNU Octave on `PATH`, with whatever Octave packages the user's own
+   functions rely on.
 
-If any is missing the extension says which one, rather than leaving a dead
+If either is missing the extension says which one, rather than leaving a dead
 menu entry behind.
 
 ## Layout, as it fills in
@@ -42,8 +41,7 @@ menu entry behind.
 | Path | Holds |
 |------|-------|
 | `COPYING`, `LICENSE.txt` | GPL v3. |
-| `basic/` | The Basic prototype, which is the first working shape. |
-| `python/` | The PyUNO component, only once the prototype earns it. |
+| `python/` | The PyUNO component, which is where the work happens. |
 | `oxt/` | `description.xml`, `META-INF/`, the `.xcu` configuration. |
 | `tools/` | Build script that zips the `.oxt`. |
 
