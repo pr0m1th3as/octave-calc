@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The node under AddInInfo is the SERVICE name, not the implementation
+     name.  Keying it on the implementation name registers nothing and the
+     function reports #NAME?, which reads as a missing extension. -->
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    oor:name="CalcAddIns" oor:package="org.openoffice.Office">
+ <node oor:name="AddInInfo">
+  <node oor:name="org.octavecalc.Octave" oor:op="replace">
+   <node oor:name="AddInFunctions">
+    <node oor:name="run" oor:op="replace">
+     <prop oor:name="DisplayName"><value xml:lang="en">OCTAVE</value></prop>
+     <prop oor:name="Description"><value xml:lang="en">Runs an Octave function over a range and returns its result.</value></prop>
+     <prop oor:name="Category"><value>Add-In</value></prop>
+     <prop oor:name="CompatibilityName"><value xml:lang="en">OCTAVE</value></prop>
+     <node oor:name="Parameters">
+      <node oor:name="name" oor:op="replace">
+       <prop oor:name="DisplayName"><value xml:lang="en">name</value></prop>
+       <prop oor:name="Description"><value xml:lang="en">Name of the Octave function to run.</value></prop>
+      </node>
+      <node oor:name="data" oor:op="replace">
+       <prop oor:name="DisplayName"><value xml:lang="en">data</value></prop>
+       <prop oor:name="Description"><value xml:lang="en">Range of cells it runs over.</value></prop>
+      </node>
+      <node oor:name="args" oor:op="replace">
+       <prop oor:name="DisplayName"><value xml:lang="en">args</value></prop>
+       <prop oor:name="Description"><value xml:lang="en">Further arguments, such as 2 or "omitnan".</value></prop>
+      </node>
+     </node>
+    </node>
+   </node>
+  </node>
+ </node>
+</oor:component-data>

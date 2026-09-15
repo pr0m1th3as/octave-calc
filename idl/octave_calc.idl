@@ -1,0 +1,43 @@
+// Copyright (C) 2026 Andreas Bertsatos <abertsatos@biol.uoa.gr>
+//
+// This file is part of the octave-calc extension.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+// The UNO namespace is org.octavecalc.  It is NOT the extension identifier,
+// which D15 fixed as io.github.pr0m1th3as.octavecalc: these are different
+// strings serving different purposes.  PyUNO maps a UNO namespace onto a
+// Python package, and "io" is a standard library module, so an io.github.*
+// namespace would resolve to Python's own io and the type would never be
+// found.
+
+module org { module octavecalc {
+
+/** The spreadsheet function.  NAME is a function name and never code; DATA is
+    the range it runs over; ARGS is everything after it.
+
+    The return type is declared rather than wrapped in an any.  A matrix
+    returned inside an any gives #VALUE! in every cell, measured 2026-09-11,
+    D18.  A scalar result comes back as a one-by-one matrix, which an ordinary
+    formula reads as its top-left value. */
+interface XOctave
+{
+    sequence< sequence< any > > run([in] string name,
+                                    [in] sequence< sequence< any > > data,
+                                    [in] sequence< any > args);
+};
+
+service Octave : XOctave;
+
+}; };

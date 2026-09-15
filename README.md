@@ -19,11 +19,20 @@ nothing here installs with `pkg`. It installs into LibreOffice.
 
 ## Status
 
-**Nothing is built yet.** The project is an evaluation rather than a
-commitment, and it is explicitly unmaintained until it proves it is wanted.
-The first thing to appear will be a menu-driven prototype that hands a
-selected range to Octave and writes the result back, which exists to find out
-whether anyone wants Calc to call Octave at all.
+**Early, and explicitly unmaintained until it proves it is wanted.** What
+works today is the spreadsheet function:
+
+    =OCTAVE("mean", A1:C2)
+    =OCTAVE("mean", A1:C2, 2, "omitnan")
+
+The range is the function's first argument and anything after it is passed
+along. A result of more than one cell is entered as an array formula: select
+the output range, then Ctrl+Shift+Enter, since Calc has no spilling. Results
+recalculate when their source cells change, and a repeated call with
+unchanged inputs is answered from a cache without starting Octave at all.
+
+A menu-driven workbench for longer analyses, which a formula cannot host
+because Calc waits for a formula to return, is the next piece.
 
 ## What it will need, once there is something to install
 
@@ -41,9 +50,10 @@ menu entry behind.
 | Path | Holds |
 |------|-------|
 | `COPYING`, `LICENSE.txt` | GPL v3. |
-| `python/` | The PyUNO component, which is where the work happens. |
-| `oxt/` | `description.xml`, `META-INF/`, the `.xcu` configuration. |
-| `tools/` | Build script that zips the `.oxt`. |
+| `python/` | The component and the Octave runner behind it. |
+| `idl/` | The interface a cell formula calls, compiled into the package. |
+| `oxt/` | `description.xml`, `META-INF/`, the `.xcu` registration. |
+| `tools/` | `build_oxt.py`, which compiles and packages the extension. |
 
 ## Licence
 
