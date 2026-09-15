@@ -30,8 +30,14 @@ works today are two spreadsheet functions:
 text, or ranges. A range passed as it is arrives as its values. Wrapped in
 `OCTRANGE`, it keeps its dates, times, logical values and error cells; with
 the mode `"pairs"`, a range of two columns, names then values, is passed as
-name-value arguments. A range holding an error cell is refused, naming the
-cell.
+name-value arguments.
+
+A `NaN` result shows as `#N/A`, and `Inf` or `-Inf` as `#NUM!`. Read through
+`OCTRANGE`, a `#N/A` cell is a missing value again, `NaN` or `NaT` for a date,
+while any other error cell is refused, naming the cell. Calc stops a plain
+reference to an error cell before the function is called: a single cell shows
+that error, and a range shows `Err:504`. **Wrap a range that may hold `#N/A`
+in `OCTRANGE`.**
 
 A result of more than one cell is entered as an array formula: select the
 output range, then Ctrl+Shift+Enter, since Calc has no spilling. Results

@@ -38,6 +38,7 @@ import os
 import re
 import select
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -87,6 +88,10 @@ RESULT_STRING = 2
 ERROR_NAMES = {503: '#NUM!', 519: '#VALUE!', 521: '#NULL!', 524: '#REF!',
                525: '#NAME?', 530: '#ADDIN?', 531: '#MACRO?', 532: '#DIV/0!',
                32767: '#N/A'}
+
+# #N/A: a missing value both ways.  A NaN result shows as #N/A, and #N/A in a
+# range read through OCTRANGE is missing, as an empty cell is.
+ERROR_NOT_AVAILABLE = 32767
 
 # An OCTRANGE key: this prefix, the mode, the range's absolute name, then the
 # SHA-1 of its cells.  A sheet name may hold '|', so the mode is split off the
@@ -159,7 +164,10 @@ def cell_kind (content, result, error, value, text, format_type,
   displayed text, and FORMAT_TYPE and FORMAT_STRING its number format.  A
   formula's result is read by the format it is shown with.  An error is named
   from its code, since the displayed text reads '...' while Calc
-  recalculates."""
+  recalculates.  #N/A is a missing value, marked so that a pair can tell it
+  from a blank cell."""
+  if (error == ERROR_NOT_AVAILABLE):
+    return {'kind': 'empty', 'na': True}
   if (error):
     return {'kind': 'error', 'value': error_name (error)}
   if (content == 'EMPTY'):
@@ -264,7 +272,7 @@ def expand_pairs (rows, column, row, resolve):
     if (name['kind'] != 'text'):
       raise ValueError ('%s holds an option name that is not text.'
                         % cell_name (column, row + i))
-    if (value['kind'] == 'empty'):
+    if (value['kind'] == 'empty' and not value.get ('na')):
       raise ValueError ('%s names the option "%s" but %s holds no value.'
                         % (cell_name (column, row + i), name['value'],
                            cell_name (column + 1, row + i)))
@@ -278,6 +286,9 @@ def pair_value (cell, where, resolve):
   """The argument for the value CELL of a pair, found at WHERE.  A value
   holding a "data" key becomes that range, which is how a vector option comes
   from a sheet; a date or time goes as a one-cell range to keep its kind."""
+  if (cell.get ('na')):
+    # A one-cell range holding only a missing value arrives as NaN
+    return range_arg ([[{'kind': 'empty'}]])
   kind, value = cell['kind'], cell.get ('value')
   if (kind == 'text' and value.startswith (MESSAGE_PREFIX)):
     raise ValueError (value[len (MESSAGE_PREFIX):])
@@ -426,8 +437,8 @@ def sandbox_confirmed (result):
 def cell_value (kind, cell):
   """One element of an octave_call output as a cell holds it: text as text,
   anything else as a number.  A logical value is 1 or 0, a date or duration
-  its serial number, and NaN and Inf stay non-finite, which Calc shows as
-  #NUM!."""
+  its serial number, NaN a NaN carrying #N/A's code, which Calc shows as
+  #N/A, and Inf and -Inf themselves, which Calc shows as #NUM!."""
   if (kind == 'cell'):
     if (cell['kind'] == 'empty'):
       return ''
@@ -437,9 +448,15 @@ def cell_value (kind, cell):
   if (kind == 'logical'):
     return 1.0 if cell else 0.0
   if (cell is None):
-    return float ('nan')
+    return coded_nan (ERROR_NOT_AVAILABLE)
   # float reads "Inf" and "-Inf" as they come
   return float (cell)
+
+
+def coded_nan (code):
+  """A quiet NaN carrying CODE in its low 32 bits, which is how Calc stores an
+  error inside a number and so shows that error."""
+  return struct.unpack ('<d', struct.pack ('<Q', 0x7FF8000000000000 | code))[0]
 
 
 def output_rows (output):

@@ -26,6 +26,7 @@ and the devtools package, and one of them the datatypes package.
 
 import math
 import os
+import struct
 import sys
 import types
 import unittest
@@ -74,6 +75,11 @@ class CellKind (unittest.TestCase):
     self.assertEqual (kind ('FORMULA', result = 4, error = 532,
                             text = '...', format_type = 2),
                       {'kind': 'error', 'value': '#DIV/0!'})
+
+  def test_not_available_is_missing (self):
+    self.assertEqual (kind ('FORMULA', result = 4, error = 32767,
+                            text = '...'),
+                      {'kind': 'empty', 'na': True})
 
   def test_logical (self):
     self.assertEqual (kind (value = 0.0, format_type = 1024),
@@ -307,6 +313,10 @@ class Pairs (unittest.TestCase):
                                  r'value takes a "data" range\.$'):
       self.expand ([[text ('Lambda'), text (key)]], {key: (9, 0, OPTIONS)})
 
+  def test_not_available_value (self):
+    built = self.expand ([[text ('Lambda'), {'kind': 'empty', 'na': True}]])
+    self.assertEqual (built[2], octave_core.range_arg ([[EMPTY]]))
+
   def test_blank_rows_only (self):
     self.assertEqual (self.expand ([[EMPTY, EMPTY]]),
                       [{'type': 'number', 'value': 1.0}])
@@ -444,6 +454,10 @@ class SandboxConfirmed (unittest.TestCase):
       {'_meta': {octave_core.SANDBOX_KEY: 'true'}}))
 
 
+def bits (value):
+  return '%016x' % struct.unpack ('<Q', struct.pack ('<d', value))[0]
+
+
 def output (kind, rows, cols, cells):
   return {'kind': kind, 'class': '', 'rows': rows, 'cols': cols,
           'cells': cells}
@@ -461,9 +475,9 @@ class OutputRows (unittest.TestCase):
       octave_core.output_rows (output ('number', 1, 2, ['Inf', '-Inf'])),
       ((float ('inf'), float ('-inf')),))
 
-  def test_nan (self):
+  def test_nan_shows_not_available (self):
     row = octave_core.output_rows (output ('number', 1, 1, [None]))[0]
-    self.assertTrue (math.isnan (row[0]))
+    self.assertEqual (bits (row[0]), '7ff8000000007fff')
 
   def test_logical (self):
     self.assertEqual (
@@ -569,6 +583,15 @@ class Server (unittest.TestCase):
       octave_core.call ('class', [date_range ()], runner = self.runner),
       (('octave-calc: argument 1 holds dates or times, which need the '
         'datatypes package loaded in this sandbox.',),))
+
+  def test_nan_result_shows_not_available (self):
+    self.assertEqual (bits (self.call ('nan')[0][0]), '7ff8000000007fff')
+
+  def test_not_available_input_is_nan (self):
+    data = octave_core.range_arg ([[{'kind': 'empty', 'na': True},
+                                    number (1.0)]])
+    self.assertEqual (octave_core.call ('isnan', [data], runner = self.runner),
+                      ((1.0, 0.0),))
 
   def test_started_again_after_stop (self):
     self.runner.stop ()
