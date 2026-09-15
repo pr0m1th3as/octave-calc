@@ -32,7 +32,7 @@ is tested from a plain Python prompt and the part that needs LibreOffice holds
 no logic worth testing.
 
 Why a thread, and why this is not the cell function: a blocking handler
-freezes Calc whatever language it is written in (D13), so the handler returns
+freezes Calc whatever language it is written in, so the handler returns
 at once and results come back through AsyncCallback on the main thread. The
 document is never touched from the worker. A formula cannot do any of that,
 which is why the cell function is an Add-In and lives elsewhere.
@@ -254,10 +254,10 @@ def _placement (address, rows, width):
 
 
 def _parse_args (text):
-  """Split a comma-separated argument list into tagged values.  A token that
-  reads as a number becomes one; anything else is a string, quoted or not, so
-  both  2, omitnan  and  2, 'omitnan'  work.  Quoting forces a string, which
-  is how a literal "2" is passed."""
+  """Split a comma-separated argument list into octave_call arguments.  A
+  token that reads as a number becomes one; anything else is a string, quoted
+  or not, so both  2, omitnan  and  2, 'omitnan'  work.  Quoting forces a
+  string, which is how a literal "2" is passed."""
   if (not text.strip ()):
     return []
   tokens, token, quoted, quote = [], '', False, None
@@ -282,12 +282,12 @@ def _parse_args (text):
     if (item == ''):
       continue
     if (was_quoted):
-      args.append ({'t': 's', 'v': item})
+      args.append ({'type': 'string', 'value': item})
       continue
     try:
-      args.append ({'t': 'n', 'v': float (item)})
+      args.append ({'type': 'number', 'value': float (item)})
     except ValueError:
-      args.append ({'t': 's', 'v': item})
+      args.append ({'type': 'string', 'value': item})
   return args
 
 
@@ -295,7 +295,8 @@ def _call_text (name, source, args):
   """How the call reads to a human.  Provenance, not code to be run."""
   shown = [source]
   for arg in args:
-    shown.append ('"%s"' % arg['v'] if arg['t'] == 's' else _number (arg['v']))
+    shown.append ('"%s"' % arg['value'] if arg['type'] == 'string'
+                  else _number (arg['value']))
   return '%s (%s)' % (name, ', '.join (shown))
 
 
@@ -405,7 +406,8 @@ def _launch (answers):
               'A run is already under way.  Wait for it to finish.')
     return
 
-  rows_in = octave_core.as_rows (cell_range.getDataArray ())
+  data = octave_core.plain_range (cell_range.getDataArray ())
+  null_date = octave_core.iso_date (XSCRIPTCONTEXT.getDocument ().NullDate)
   address = cell_range.RangeAddress
   sheet = XSCRIPTCONTEXT.getDocument ().Sheets.getByIndex (address.Sheet)
   call = _call_text (name, _plain (cell_range.AbsoluteName), args)
@@ -413,7 +415,7 @@ def _launch (answers):
   def work ():
     try:
       started = time.time ()
-      rows = octave_core.run (name, rows_in, args, timeout = 3600)
+      rows = octave_core.run (name, [data] + args, null_date, timeout = 3600)
       elapsed = time.time () - started
       _post (lambda: _land (sheet, address, rows, call, elapsed))
     except Exception as err:
@@ -542,12 +544,12 @@ def diagnose ():
   def cell_function ():
     access = _create ('com.sun.star.sheet.FunctionAccess')
     return repr (access.callFunction (
-      'OCTAVE', ('mean', ((3.0, 2.0, 8.0), (5.0, 4.0, 6.0)), ())))
+      'OCTAVE', ('mean', ((3.0, 2.0, 8.0), (5.0, 4.0, 6.0)))))
   check ('=OCTAVE through Calc', cell_function)
 
   check ('octave_core.call', lambda:
-         repr (octave_core.call ('mean', ((3.0, 2.0, 8.0), (5.0, 4.0, 6.0)),
-                                 ())))
+         repr (octave_core.call ('mean', [octave_core.plain_range (
+           ((3.0, 2.0, 8.0), (5.0, 4.0, 6.0)))])))
 
   text = '\n'.join (report)
   with open ('/tmp/octave-calc-diagnose.txt', 'w') as fid:

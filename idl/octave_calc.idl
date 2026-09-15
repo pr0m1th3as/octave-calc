@@ -16,26 +16,45 @@
 // with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // The UNO namespace is org.octavecalc.  It is NOT the extension identifier,
-// which D15 fixed as io.github.pr0m1th3as.octavecalc: these are different
-// strings serving different purposes.  PyUNO maps a UNO namespace onto a
-// Python package, and "io" is a standard library module, so an io.github.*
+// which is io.github.pr0m1th3as.octavecalc: these are different strings
+// serving different purposes.  PyUNO maps a UNO namespace onto a Python
+// package, and "io" is a standard library module, so an io.github.*
 // namespace would resolve to Python's own io and the type would never be
 // found.
 
 module org { module octavecalc {
 
-/** The spreadsheet function.  NAME is a function name and never code; DATA is
-    the range it runs over; ARGS is everything after it.
-
-    The return type is declared rather than wrapped in an any.  A matrix
-    returned inside an any gives #VALUE! in every cell, measured 2026-09-11,
-    D18.  A scalar result comes back as a one-by-one matrix, which an ordinary
-    formula reads as its top-left value. */
+/** The spreadsheet functions.  CALLER is the document, which Calc passes
+    without the formula naming it, for its null date, number formats and
+    sheets.  A saved formula names this service, so it never changes. */
 interface XOctave
 {
-    sequence< sequence< any > > run([in] string name,
-                                    [in] sequence< sequence< any > > data,
-                                    [in] sequence< any > args);
+    /** OCTAVE: NAME is a function name and never code, and ARG1 to ARG16
+        are its arguments, each optional and taken by value, so that a range
+        can go in any position.  A range whose cells must keep their kind is
+        passed as the key OCTRANGE returns for it, and one key can carry any
+        number of name-value pairs.
+
+        The arguments are fixed rather than one repeated sequence, because
+        Calc's Function Wizard numbers every label of a function ending in a
+        repeated argument.  The return type is declared rather than wrapped in
+        an any, which gives #VALUE! in every cell. */
+    sequence< sequence< any > > run(
+        [in] com::sun::star::beans::XPropertySet caller,
+        [in] string name,
+        [in] any arg1, [in] any arg2, [in] any arg3, [in] any arg4,
+        [in] any arg5, [in] any arg6, [in] any arg7, [in] any arg8,
+        [in] any arg9, [in] any arg10, [in] any arg11, [in] any arg12,
+        [in] any arg13, [in] any arg14, [in] any arg15, [in] any arg16);
+
+    /** OCTRANGE: DATA is read cell by cell with its number formats, which only
+        an argument declared as a range receives, and kept under the returned
+        key.  MODE, optional, is "data" for one argument or "pairs" for
+        name-value arguments from two columns. */
+    string octrange(
+        [in] com::sun::star::beans::XPropertySet caller,
+        [in] com::sun::star::table::XCellRange data,
+        [in] any mode);
 };
 
 service Octave : XOctave;
