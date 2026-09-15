@@ -51,5 +51,18 @@
     </node>
    </node>
   </node>
+  <!-- Octave's logo beside the entry, bound to its command URL. -->
+  <node oor:name="Images">
+   <node oor:name="io.github.pr0m1th3as.octavecalc.statistics" oor:op="replace">
+    <prop oor:name="URL" oor:type="xs:string">
+     <value>org.octavecalc.statistics:Menu</value>
+    </prop>
+    <node oor:name="UserDefinedImages">
+     <prop oor:name="ImageSmallURL" oor:type="xs:string">
+      <value>%origin%/icons/octave_16.png</value>
+     </prop>
+    </node>
+   </node>
+  </node>
  </node>
 </oor:component-data>
