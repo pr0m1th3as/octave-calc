@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Data > Statistics with GNU Octave, its own entry directly below Calc's
+     Statistics.  An extension can only place an entry beside an existing
+     one, and the entry is left out where a customised Data menu has no
+     Statistics, rather than shown without its submenu. -->
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
+                    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                    oor:name="Addons" oor:package="org.openoffice.Office">
+ <node oor:name="AddonUI">
+  <node oor:name="OfficeMenuBarMerging">
+   <node oor:name="io.github.pr0m1th3as.octavecalc" oor:op="replace">
+    <node oor:name="statistics" oor:op="replace">
+     <prop oor:name="MergePoint" oor:type="xs:string">
+      <value>.uno:DataMenu\.uno:StatisticsMenu</value>
+     </prop>
+     <prop oor:name="MergeCommand" oor:type="xs:string">
+      <value>AddAfter</value>
+     </prop>
+     <prop oor:name="MergeCommandParameter" oor:type="xs:string">
+      <value/>
+     </prop>
+     <prop oor:name="MergeFallback" oor:type="xs:string">
+      <value>Ignore</value>
+     </prop>
+     <prop oor:name="MergeContext" oor:type="xs:string">
+      <value>com.sun.star.sheet.SpreadsheetDocument</value>
+     </prop>
+     <node oor:name="MenuItems">
+      <node oor:name="m1" oor:op="replace">
+       <prop oor:name="URL" oor:type="xs:string">
+        <value>org.octavecalc.statistics:Menu</value>
+       </prop>
+       <prop oor:name="Title" oor:type="xs:string">
+        <value xml:lang="en-US">Statistics with GNU Octave</value>
+       </prop>
+       <node oor:name="Submenu">
+        <node oor:name="m1" oor:op="replace">
+         <prop oor:name="URL" oor:type="xs:string">
+          <value>org.octavecalc.statistics:KruskalWallis</value>
+         </prop>
+         <prop oor:name="Title" oor:type="xs:string">
+          <value xml:lang="en-US">Kruskal-Wallis Test...</value>
+         </prop>
+         <prop oor:name="Target" oor:type="xs:string">
+          <value>_self</value>
+         </prop>
+        </node>
+       </node>
+      </node>
+     </node>
+    </node>
+   </node>
+  </node>
+ </node>
+</oor:component-data>
