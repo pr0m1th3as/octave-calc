@@ -53,9 +53,11 @@ from com.sun.star.sheet import XRangeSelectionListener
 # hardest kind of fault to read from a spreadsheet.
 try:
   import octave_core
+  import octave_settings
 except ImportError:
   sys.path.insert (0, os.path.dirname (os.path.abspath (__file__)))
   import octave_core
+  import octave_settings
 
 # One run at a time.  A second would fight the first for the output range.
 _busy = threading.Lock ()
@@ -308,6 +310,10 @@ def _number (value):
 
 def check_environment ():
   """Report whether the two things this needs are in place."""
+  problem = octave_core.sandbox_problem ()
+  if (problem):
+    _message ('Octave for LibreOffice Calc', problem, 'ERRORBOX')
+    return
   binary = octave_core.octave ()
   if (not binary):
     _message ('Octave for LibreOffice Calc',
@@ -331,10 +337,9 @@ def check_environment ():
 def run_selection ():
   """Run an Octave function over a range and write back what it returns.
   Returns at once; the work happens on a thread."""
-  if (not octave_core.octave ()):
-    _message ('Octave for LibreOffice Calc',
-              'No Octave interpreter on PATH.  Run check_environment.',
-              'ERRORBOX')
+  problem = octave_core.sandbox_problem ()
+  if (problem):
+    _message ('Octave for LibreOffice Calc', problem, 'ERRORBOX')
     return
   cell_range = _selected_range ()
   _prompt ({'name': 'mean',
@@ -411,11 +416,22 @@ def _launch (answers):
   address = cell_range.RangeAddress
   sheet = XSCRIPTCONTEXT.getDocument ().Sheets.getByIndex (address.Sheet)
   call = _call_text (name, _plain (cell_range.AbsoluteName), args)
+  try:
+    settings = octave_settings.read (XSCRIPTCONTEXT.getComponentContext (),
+                                     'workbench')
+  except Exception as err:
+    _busy.release ()
+    _message ('Octave for LibreOffice Calc',
+              'Could not read the extension settings:\n\n%s' % err,
+              'ERRORBOX')
+    return
 
   def work ():
     try:
       started = time.time ()
-      rows = octave_core.run (name, [data] + args, null_date, timeout = 3600)
+      outputs = octave_core.server ('workbench', settings).call (
+        name, [data] + args, null_date)
+      rows = octave_core.output_rows (outputs[0])
       elapsed = time.time () - started
       _post (lambda: _land (sheet, address, rows, call, elapsed))
     except Exception as err:
@@ -549,7 +565,9 @@ def diagnose ():
 
   check ('octave_core.call', lambda:
          repr (octave_core.call ('mean', [octave_core.plain_range (
-           ((3.0, 2.0, 8.0), (5.0, 4.0, 6.0)))])))
+           ((3.0, 2.0, 8.0), (5.0, 4.0, 6.0)))], runner = octave_core.server (
+             'cell', octave_settings.read (
+               XSCRIPTCONTEXT.getComponentContext (), 'cell')))))
 
   text = '\n'.join (report)
   with open ('/tmp/octave-calc-diagnose.txt', 'w') as fid:

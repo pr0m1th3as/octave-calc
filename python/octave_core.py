@@ -25,23 +25,51 @@ Arguments are built as devtools' octave_call takes them: a list in call order
 of numbers, strings, logical values and ranges, each range cell carrying its
 kind and value, dates and times as serial numbers from the document's null
 date.
+
+Every call runs in a sandboxed devtools.mcpEval server, on Linux only.  No
+cell is evaluated where no sandbox can run, and none by a server that does
+not report its sandbox.
 """
 
+import atexit
 import hashlib
 import json
 import os
 import re
+import select
 import shutil
 import subprocess
+import sys
 import tempfile
+import threading
+import time
 
-OCTAVE_CANDIDATES = ('octave-cli', 'octave')
+OCTAVE_CANDIDATES = ('octave-cli',)
 
 # A bare function name, or a namespaced or static-method one: mean, geom.area,
 # ClassName.method.  Anything else never reaches the interpreter.
 NAME_RE = re.compile (r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$')
 
 OCTAVE_FLAGS = ('-q', '--no-init-file', '--no-site-file', '--no-history')
+
+# The server, launched as devtools documents it.  What it may read and load,
+# and its budgets, travel in the environment, never in this text.
+LAUNCH = "pkg load devtools; devtools.mcpEval ('Sandbox', true)"
+
+# A sandboxed server reports itself under this key of its results' _meta.
+SANDBOX_KEY = 'io.github.pr0m1th3as.devtools/sandbox'
+
+PROTOCOL_VERSION = '2025-11-25'
+
+# What a server launched through systemd-run takes from this environment,
+# since systemd-run passes none of it on.  The sandbox clears everything
+# inside except HOME and LANG.
+PASSED = ('PATH', 'HOME', 'LANG', 'LD_LIBRARY_PATH')
+
+# How long a server may take to start, and how long past its own deadline a
+# call may go unanswered before the server is taken to be stuck.
+START_SECONDS = 60
+GRACE_SECONDS = 5
 
 # Serial number 0 when a document does not say otherwise.
 NULL_DATE = '1899-12-30'
@@ -340,92 +368,291 @@ def iso_date (date):
   return '%04d-%02d-%02d' % (date.Year, date.Month, date.Day)
 
 
-def script (in_path, out_path, err_path, name):
-  """The code the interpreter runs.  Every path here is one we made, and the
-  only value taken from the user is NAME, which matched NAME_RE.  The
-  arguments are read out of the file as data and never appear in this text,
-  and devtools decodes them exactly as its octave_call does."""
-  return (
-    "try\n"
-    "  pkg load devtools\n"
-    "  __oc_in__ = jsondecode (fileread ('%s'));\n"
-    "  [__oc_args__, __oc_msg__] = devtools.__callDecode__ (__oc_in__.args, "
-    "__oc_in__.nullDate, ! isempty (which ('datetime')));\n"
-    "  if (! isempty (__oc_msg__))\n"
-    "    error ('%%s', __oc_msg__);\n"
-    "  endif\n"
-    "  __oc_r__ = %s (__oc_args__{:});\n"
-    "  __oc_out__ = struct ('class', class (__oc_r__), "
-    "'size', size (__oc_r__), 'data', __oc_r__);\n"
-    "  __oc_fid__ = fopen ('%s', 'w');\n"
-    "  fwrite (__oc_fid__, jsonencode (__oc_out__));\n"
-    "  fclose (__oc_fid__);\n"
-    "catch __oc_err__\n"
-    "  __oc_fid__ = fopen ('%s', 'w');\n"
-    "  fwrite (__oc_fid__, __oc_err__.message);\n"
-    "  fclose (__oc_fid__);\n"
-    "end\n" % (in_path, name, out_path, err_path))
+def sandbox_problem ():
+  """Why no sandboxed Octave can run on this machine, or None."""
+  if (not sys.platform.startswith ('linux')):
+    return ('Octave for LibreOffice Calc runs on Linux only, where Octave is '
+            'sandboxed.')
+  if (not octave ()):
+    return 'no octave-cli on PATH.'
+  if (not shutil.which ('bwrap')):
+    return 'no sandbox: bwrap is not installed (package bubblewrap).'
+  if (not shutil.which ('prlimit')):
+    return 'no sandbox: prlimit is not installed (package util-linux).'
+  return None
 
 
-def reshape (result):
-  """Normalise what Octave returned into rows."""
-  klass, size, data = result['class'], result['size'], result['data']
-  if (klass == 'char'):
-    return ((data if isinstance (data, str) else '',),)
-  if (not isinstance (data, list)):
-    return ((data,),)
-  if (data and isinstance (data[0], list)):
-    return tuple (tuple (row) for row in data)
-  # A flat list is a vector, and jsonencode does not say which way it runs.
-  rows = (size + [1, 1])[0]
-  if (rows == 1):
-    return (tuple (data),)
-  return tuple ((value,) for value in data)
+def user_manager ():
+  """True when a systemd user manager can start a server."""
+  runtime = os.environ.get ('XDG_RUNTIME_DIR')
+  return bool (shutil.which ('systemd-run') and runtime
+               and os.path.exists (os.path.join (runtime, 'systemd',
+                                                 'private')))
 
 
-def run (name, args, null_date = NULL_DATE, timeout = 600):
-  """One cold interpreter, synchronously.  ARGS are octave_call arguments.
-  Returns rows, or raises."""
-  folder = tempfile.mkdtemp (prefix = 'octave-calc-')
-  in_path = os.path.join (folder, 'in.json')
-  out_path = os.path.join (folder, 'out.json')
-  err_path = os.path.join (folder, 'err.txt')
-  with open (in_path, 'w') as fid:
-    json.dump ({'args': args, 'nullDate': null_date}, fid)
-  subprocess.run (list ((octave (),) + OCTAVE_FLAGS)
-                  + ['--eval', script (in_path, out_path, err_path, name)],
-                  capture_output = True, text = True, timeout = timeout)
-  if (os.path.exists (err_path)):
-    with open (err_path) as fid:
-      raise RuntimeError (fid.read ().strip ().splitlines ()[0])
-  if (not os.path.exists (out_path)):
-    raise RuntimeError ('%s produced no result.' % name)
-  with open (out_path) as fid:
-    return reshape (json.load (fid))
+def server_environment (settings):
+  """What a server's launch environment holds for SETTINGS: its folders,
+  packages, budgets and deadline."""
+  return {'DEVTOOLS_SANDBOX_FOLDERS': os.pathsep.join (settings['folders']),
+          'DEVTOOLS_SANDBOX_PACKAGES': ','.join (settings['packages']),
+          'DEVTOOLS_SANDBOX_MEMORY': str (settings['memory']),
+          'DEVTOOLS_SANDBOX_TMP': str (settings['tmp']),
+          'DEVTOOLS_EVAL_SECONDS': str (settings['seconds'])}
 
 
-def call (name, args, null_date = NULL_DATE):
+def launch_command (binary, settings, unit = None, inherited = None):
+  """The command that starts a server running BINARY.  With a UNIT name it
+  goes through systemd-run, carrying INHERITED and the settings as its
+  environment: the user's service manager then starts the server, outside any
+  AppArmor profile confining the office, whose user namespace denial stops
+  bwrap even in complain mode.  Without one it is the plain launch."""
+  command = [binary, '-q', '--no-init-file', '--eval', LAUNCH]
+  if (unit is None):
+    return command
+  env = dict (inherited or {})
+  env.update (server_environment (settings))
+  return (['systemd-run', '--user', '--pipe', '--quiet', '--collect',
+           '--unit=' + unit]
+          + ['--setenv=%s=%s' % item for item in sorted (env.items ())]
+          + ['--'] + command)
+
+
+def sandbox_confirmed (result):
+  """True when the initialize RESULT of a server reports its sandbox."""
+  meta = (result or {}).get ('_meta') or {}
+  return meta.get (SANDBOX_KEY) is True
+
+
+def cell_value (kind, cell):
+  """One element of an octave_call output as a cell holds it: text as text,
+  anything else as a number.  A logical value is 1 or 0, a date or duration
+  its serial number, and NaN and Inf stay non-finite, which Calc shows as
+  #NUM!."""
+  if (kind == 'cell'):
+    if (cell['kind'] == 'empty'):
+      return ''
+    return cell_value (cell['kind'], cell['value'])
+  if (kind == 'text'):
+    return cell
+  if (kind == 'logical'):
+    return 1.0 if cell else 0.0
+  if (cell is None):
+    return float ('nan')
+  # float reads "Inf" and "-Inf" as they come
+  return float (cell)
+
+
+def output_rows (output):
+  """The rows of cell values for one octave_call OUTPUT, whose cells come row
+  by row.  An empty output is one empty cell."""
+  rows, cols = output['rows'], output['cols']
+  if (rows == 0 or cols == 0):
+    return (('',),)
+  values = [cell_value (output['kind'], cell) for cell in output['cells']]
+  return tuple (tuple (values[r * cols:(r + 1) * cols]) for r in range (rows))
+
+
+class Server:
+  """One sandboxed devtools.mcpEval process, spoken to over its pipes one
+  request at a time.  It starts on its first call, and again on the call
+  after it has died or been stopped.
+
+  SETTINGS holds 'folders' and 'packages', lists, and 'memory', 'tmp' and
+  'seconds', numbers: the budgets in gigabytes and the deadline."""
+
+  # Numbers the systemd units of the servers this process starts
+  started = 0
+
+  def __init__ (self, settings):
+    self.settings = settings
+    self.process = None
+    self.unit = None
+    self.errors = None
+    self.buffer = b''
+    self.next_id = 0
+    self.lock = threading.Lock ()
+
+  def call (self, name, args, null_date = NULL_DATE, nargout = 1):
+    """The outputs of NAME called on ARGS, as octave_call returns them.
+    Raises RuntimeError holding a message fit for a cell."""
+    with self.lock:
+      if (self.process is None or self.process.poll () is not None):
+        self._start ()
+      reply = self._request ('tools/call', {
+        'name': 'octave_call',
+        'arguments': {'function': name, 'args': args, 'nargout': nargout,
+                      'nullDate': null_date}},
+        self.settings['seconds'] + GRACE_SECONDS)
+    if ('error' in reply):
+      raise RuntimeError (reply['error'].get ('message', 'the call failed.'))
+    result = reply.get ('result') or {}
+    content = result.get ('structuredContent') or {}
+    if (result.get ('isError')):
+      raise RuntimeError (content.get ('error') or 'the call failed.')
+    return content['outputs']
+
+  def stop (self):
+    """End the process, if one is running.  Closing its input is how the
+    server is asked to exit; one that does not is killed."""
+    if (self.process is not None):
+      try:
+        self.process.stdin.close ()
+      except Exception:
+        pass
+      try:
+        self.process.wait (timeout = 2)
+      except subprocess.TimeoutExpired:
+        self.process.kill ()
+        self.process.wait ()
+        # Killing systemd-run leaves the server it started running
+        if (self.unit is not None):
+          subprocess.run (['systemctl', '--user', 'stop', self.unit],
+                          capture_output = True, timeout = 30)
+      self.process.stdout.close ()
+      self.process = None
+      self.unit = None
+    if (self.errors is not None):
+      self.errors.close ()
+      self.errors = None
+
+  def _start (self):
+    problem = sandbox_problem ()
+    if (problem):
+      raise RuntimeError (problem)
+    self.stop ()
+    if (user_manager ()):
+      Server.started += 1
+      self.unit = 'octave-calc-%d-%d' % (os.getpid (), Server.started)
+      inherited = {name: os.environ[name] for name in PASSED
+                   if name in os.environ}
+      command = launch_command (octave (), self.settings, self.unit,
+                                inherited)
+      env = None
+    else:
+      command = launch_command (octave (), self.settings)
+      env = dict (os.environ)
+      env.update (server_environment (self.settings))
+    # A file rather than a pipe, which nothing reads until it is needed and
+    # which therefore can never fill and stall the server
+    self.errors = tempfile.TemporaryFile ()
+    self.buffer = b''
+    self.process = subprocess.Popen (command, stdin = subprocess.PIPE,
+                                     stdout = subprocess.PIPE,
+                                     stderr = self.errors, env = env)
+    reply = self._request ('initialize', {
+      'protocolVersion': PROTOCOL_VERSION, 'capabilities': {},
+      'clientInfo': {'name': 'octave-calc', 'version': '0.1.0'}},
+      START_SECONDS)
+    if (not sandbox_confirmed (reply.get ('result'))):
+      self.stop ()
+      raise RuntimeError ('the Octave server did not report a sandbox, so '
+                          'nothing was evaluated.')
+    self._send ({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+
+  def _send (self, message):
+    try:
+      self.process.stdin.write ((json.dumps (message) + '\n').encode ())
+      self.process.stdin.flush ()
+    except OSError:
+      raise RuntimeError (self._died ())
+
+  def _request (self, method, params, seconds):
+    self.next_id += 1
+    self._send ({'jsonrpc': '2.0', 'id': self.next_id, 'method': method,
+                 'params': params})
+    deadline = time.monotonic () + seconds
+    while (True):
+      reply = json.loads (self._read_line (deadline, seconds))
+      if (reply.get ('id') == self.next_id):
+        return reply
+
+  def _read_line (self, deadline, seconds):
+    out = self.process.stdout.fileno ()
+    while (b'\n' not in self.buffer):
+      left = deadline - time.monotonic ()
+      if (left <= 0):
+        self.stop ()
+        raise RuntimeError ('Octave did not answer within %g seconds and was '
+                            'stopped; the next call starts it again.'
+                            % seconds)
+      ready, _, _ = select.select ([out], [], [], left)
+      if (ready):
+        chunk = os.read (out, 65536)
+        if (not chunk):
+          raise RuntimeError (self._died ())
+        self.buffer += chunk
+    line, self.buffer = self.buffer.split (b'\n', 1)
+    return line.decode ()
+
+  def _died (self):
+    """Why the server stopped, from what it wrote to standard error: Octave's
+    last error message, not the call stack printed after it."""
+    said = ''
+    if (self.errors is not None):
+      self.errors.seek (0)
+      text = self.errors.read ().decode (errors = 'replace')
+      lines = [line.strip () for line in text.splitlines () if line.strip ()]
+      messages = [line[len ('error: '):] for line in lines
+                  if line.startswith ('error: ')
+                  and line != 'error: called from']
+      said = messages[-1] if messages else (lines[-1] if lines else '')
+    self.stop ()
+    if (said):
+      return 'the Octave server stopped: %s' % said
+    return 'the Octave server stopped.'
+
+
+# One server per role, 'cell' and 'workbench', since a formula blocks Calc and
+# a workbench analysis may run for minutes: each has its own deadline.
+_SERVERS = {}
+_SERVERS_LOCK = threading.Lock ()
+
+
+def server (role, settings):
+  """The Server for ROLE.  One whose settings have changed is stopped and
+  replaced."""
+  with _SERVERS_LOCK:
+    found = _SERVERS.get (role)
+    if (found is None or found.settings != settings):
+      if (found is not None):
+        found.stop ()
+      found = Server (settings)
+      _SERVERS[role] = found
+    return found
+
+
+def stop_servers ():
+  """Stop every server."""
+  with _SERVERS_LOCK:
+    for found in _SERVERS.values ():
+      found.stop ()
+    _SERVERS.clear ()
+
+
+atexit.register (stop_servers)
+
+
+def call (name, args, null_date = NULL_DATE, runner = None):
   """What a cell asks for: a matrix, always, or one row holding a message.
-  ARGS are octave_call arguments.
+  ARGS are octave_call arguments and RUNNER the Server that runs them.
 
   Errors come back as text rather than as an error value, because the message
   is the useful part and #VALUE! is not."""
   try:
     if (not isinstance (name, str) or not NAME_RE.match (name)):
-      return (('octave-calc: "%s" is not a function name.' % name,),)
-    if (not octave ()):
-      return (('octave-calc: no Octave interpreter on PATH.',),)
-    key = json.dumps ([name, args, null_date], sort_keys = True)
+      return ((MESSAGE_PREFIX + '"%s" is not a function name.' % name,),)
+    key = json.dumps ([name, args, null_date, runner.settings],
+                      sort_keys = True)
     if (key in _CACHE):
       return _CACHE[key]
-    value = run (name, args, null_date)
+    value = output_rows (runner.call (name, args, null_date)[0])
     _CACHE[key] = value
     _CACHE_ORDER.append (key)
     while (len (_CACHE_ORDER) > _CACHE_LIMIT):
       _CACHE.pop (_CACHE_ORDER.pop (0), None)
     return value
   except Exception as err:
-    return (('octave-calc: %s' % err,),)
+    return ((MESSAGE_PREFIX + str (err),),)
 
 
 def clear ():

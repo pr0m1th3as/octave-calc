@@ -19,9 +19,12 @@
 
   python3 -m unittest discover tests
 
-The tests that run Octave are skipped when no interpreter is on PATH.
+The tests that run Octave do so in the real sandboxed devtools server, and are
+skipped where no sandbox can run.  They need Linux, bwrap, prlimit, octave-cli
+and the devtools package, and one of them the datatypes package.
 """
 
+import math
 import os
 import sys
 import types
@@ -393,41 +396,213 @@ class Call (unittest.TestCase):
                       (('octave-calc: "disp (1)" is not a function name.',),))
 
 
-@unittest.skipUnless (octave_core.octave (), 'no Octave interpreter on PATH')
-class Run (unittest.TestCase):
+LIMITS = {'folders': ['/data/a', '/data/b'], 'packages': ['io', 'datatypes'],
+          'memory': 4, 'tmp': 1, 'seconds': 10}
+
+
+class LaunchCommand (unittest.TestCase):
+
+  def test_plain (self):
+    self.assertEqual (octave_core.launch_command ('/bin/octave-cli', LIMITS),
+                      ['/bin/octave-cli', '-q', '--no-init-file', '--eval',
+                       octave_core.LAUNCH])
+
+  def test_through_systemd_run (self):
+    command = octave_core.launch_command ('/bin/octave-cli', LIMITS, 'u1',
+                                          {'HOME': '/home/x'})
+    self.assertEqual (command[:command.index ('--')],
+                      ['systemd-run', '--user', '--pipe', '--quiet',
+                       '--collect', '--unit=u1',
+                       '--setenv=DEVTOOLS_EVAL_SECONDS=10',
+                       '--setenv=DEVTOOLS_SANDBOX_FOLDERS=/data/a:/data/b',
+                       '--setenv=DEVTOOLS_SANDBOX_MEMORY=4',
+                       '--setenv=DEVTOOLS_SANDBOX_PACKAGES=io,datatypes',
+                       '--setenv=DEVTOOLS_SANDBOX_TMP=1',
+                       '--setenv=HOME=/home/x'])
+
+  def test_systemd_run_ends_with_plain_launch (self):
+    command = octave_core.launch_command ('/bin/octave-cli', LIMITS, 'u1')
+    self.assertEqual (command[command.index ('--') + 1:],
+                      octave_core.launch_command ('/bin/octave-cli', LIMITS))
+
+
+class SandboxConfirmed (unittest.TestCase):
+
+  def test_reported (self):
+    self.assertTrue (octave_core.sandbox_confirmed (
+      {'_meta': {octave_core.SANDBOX_KEY: True}}))
+
+  def test_absent (self):
+    self.assertFalse (octave_core.sandbox_confirmed (
+      {'protocolVersion': '2025-11-25'}))
+
+  def test_no_result (self):
+    self.assertFalse (octave_core.sandbox_confirmed (None))
+
+  def test_only_true_counts (self):
+    self.assertFalse (octave_core.sandbox_confirmed (
+      {'_meta': {octave_core.SANDBOX_KEY: 'true'}}))
+
+
+def output (kind, rows, cols, cells):
+  return {'kind': kind, 'class': '', 'rows': rows, 'cols': cols,
+          'cells': cells}
+
+
+class OutputRows (unittest.TestCase):
+
+  def test_row_major (self):
+    self.assertEqual (
+      octave_core.output_rows (output ('number', 2, 2, [1, 2, 3, 4])),
+      ((1.0, 2.0), (3.0, 4.0)))
+
+  def test_inf (self):
+    self.assertEqual (
+      octave_core.output_rows (output ('number', 1, 2, ['Inf', '-Inf'])),
+      ((float ('inf'), float ('-inf')),))
+
+  def test_nan (self):
+    row = octave_core.output_rows (output ('number', 1, 1, [None]))[0]
+    self.assertTrue (math.isnan (row[0]))
+
+  def test_logical (self):
+    self.assertEqual (
+      octave_core.output_rows (output ('logical', 1, 2, [True, False])),
+      ((1.0, 0.0),))
+
+  def test_text_rows (self):
+    self.assertEqual (
+      octave_core.output_rows (output ('text', 2, 1, ['ab', 'cd'])),
+      (('ab',), ('cd',)))
+
+  def test_datetime_serial (self):
+    self.assertEqual (
+      octave_core.output_rows (output ('datetime', 1, 1, [45659])),
+      ((45659.0,),))
+
+  def test_cell_elements (self):
+    cells = [{'kind': 'text', 'value': 'a'}, {'kind': 'number', 'value': 2},
+             {'kind': 'empty'}]
+    self.assertEqual (octave_core.output_rows (output ('cell', 1, 3, cells)),
+                      (('a', 2.0, ''),))
+
+  def test_empty_output (self):
+    self.assertEqual (octave_core.output_rows (output ('number', 0, 0, [])),
+                      (('',),))
+
+
+SANDBOX = octave_core.sandbox_problem () is None
+FUNCTIONS = os.path.join (os.path.dirname (os.path.abspath (__file__)),
+                          'functions')
+
+
+def settings (**changes):
+  base = {'folders': [FUNCTIONS], 'packages': [], 'memory': 2, 'tmp': 2,
+          'seconds': 10}
+  base.update (changes)
+  return base
+
+
+def date_range ():
+  return octave_core.range_arg ([[{'kind': 'date', 'value': 45658.0}]])
+
+
+@unittest.skipUnless (SANDBOX, 'no sandbox on this machine')
+class Server (unittest.TestCase):
+
+  @classmethod
+  def setUpClass (cls):
+    cls.runner = octave_core.Server (settings ())
+
+  @classmethod
+  def tearDownClass (cls):
+    cls.runner.stop ()
+
+  def tearDown (self):
+    octave_core.clear ()
+
+  def call (self, name, *args):
+    return octave_core.call (name, octave_core.build_args (args, no_key),
+                             runner = self.runner)
 
   def test_empty_cell_is_nan (self):
-    data = octave_core.range_arg ([
-      [number (1.0), number (2.0), number (3.0)],
-      [number (4.0), EMPTY, number (6.0)]])
-    args = [data] + octave_core.build_args ((2.0, 'omitnan'), no_key)
-    self.assertEqual (octave_core.run ('mean', args), ((2.0,), (5.0,)))
+    self.assertEqual (self.call ('mean', ((1.0, 2.0, 3.0), (4.0, '', 6.0)),
+                                 2.0, 'omitnan'), ((2.0,), (5.0,)))
 
-  def test_logical_range (self):
-    data = octave_core.range_arg ([[{'kind': 'logical', 'value': True},
-                                    {'kind': 'logical', 'value': False}]])
-    self.assertEqual (octave_core.run ('class', [data]), (('logical',),))
+  def test_text_output (self):
+    self.assertEqual (self.call ('upper', 'abc'), (('ABC',),))
 
-  def test_text_range (self):
-    data = octave_core.plain_range ((('a', ''),))
-    self.assertEqual (octave_core.run ('class', [data]), (('cell',),))
+  def test_cell_array_output (self):
+    self.assertEqual (self.call ('strsplit', 'a,b', ','), (('a', 'b'),))
+
+  def test_empty_elements (self):
+    self.assertEqual (self.call ('cell', 1.0, 2.0), (('', ''),))
+
+  def test_logical_output (self):
+    self.assertEqual (self.call ('isnan', ((1.0, ''),)), ((0.0, 1.0),))
 
   def test_pairs_reach_function_as_options (self):
     rows = [[text ('Endpoints'), number (0.0)]]
     key = octave_core.range_key ('pairs', '$Sheet1.$A$1:$B$1', rows)
-    data = octave_core.plain_range (((1.0, 2.0, 3.0, 4.0),))
-    args = [data] + octave_core.build_args ((3.0, key),
-                                            keys ({key: (0, 0, rows)}))
+    args = octave_core.build_args ((((1.0, 2.0, 3.0, 4.0),), 3.0, key),
+                                   keys ({key: (0, 0, rows)}))
     # Padding with 0 gives the ends (0+1+2)/3 and (3+4+0)/3; without the
     # option they would shrink to 1.5 and 3.5
-    result = octave_core.run ('movmean', args)
+    result = octave_core.call ('movmean', args, runner = self.runner)
     self.assertEqual ([round (v, 12) for v in result[0]],
                       [1.0, 2.0, 3.0, round (7.0 / 3, 12)])
 
-  def test_error_reaches_caller (self):
-    data = octave_core.plain_range (1.0)
-    with self.assertRaisesRegex (RuntimeError, 'undefined'):
-      octave_core.run ('octave_calc_no_such_function', [data])
+  def test_folder_function (self):
+    self.assertEqual (self.call ('octave_calc_twice', 2.0), ((4.0,),))
+
+  def test_error_text_in_cell (self):
+    self.assertIn ('not found', self.call ('octave_calc_no_such_function',
+                                           1.0)[0][0])
+
+  def test_system_refused (self):
+    self.assertEqual (self.call ('system', 'true'),
+                      (('octave-calc: system is not available in a '
+                        'sandbox.',),))
+
+  def test_dates_need_datatypes (self):
+    self.assertEqual (
+      octave_core.call ('class', [date_range ()], runner = self.runner),
+      (('octave-calc: argument 1 holds dates or times, which need the '
+        'datatypes package loaded in this sandbox.',),))
+
+  def test_started_again_after_stop (self):
+    self.runner.stop ()
+    self.assertEqual (self.call ('mean', ((1.0, 3.0),)), ((2.0,),))
+
+
+@unittest.skipUnless (SANDBOX, 'no sandbox on this machine')
+class OwnServers (unittest.TestCase):
+
+  def run_once (self, name, args, **changes):
+    runner = octave_core.Server (settings (**changes))
+    try:
+      return octave_core.call (name, args, runner = runner)
+    finally:
+      runner.stop ()
+      octave_core.clear ()
+
+  def test_stopped_at_deadline (self):
+    self.assertEqual (
+      self.run_once ('octave_calc_wait', [{'type': 'number', 'value': 3.0}],
+                     seconds = 1),
+      (('octave-calc: the call to octave_calc_wait was stopped at the '
+        'deadline of 1 seconds.',),))
+
+  def test_dates_with_datatypes (self):
+    self.assertEqual (
+      self.run_once ('plus', [date_range (), {'type': 'number', 'value': 1.0}],
+                     packages = ['datatypes']),
+      ((45659.0,),))
+
+  def test_missing_package_refused (self):
+    result = self.run_once ('mean', [{'type': 'number', 'value': 1.0}],
+                            packages = ['octave_calc_no_such_package'])
+    self.assertIn ('octave_calc_no_such_package', result[0][0])
 
 
 if (__name__ == '__main__'):

@@ -37,6 +37,7 @@ from com.sun.star.sheet import XAddIn
 
 sys.path.insert (0, os.path.dirname (os.path.abspath (__file__)))
 import octave_core
+import octave_settings
 
 from org.octavecalc import XOctave
 
@@ -150,9 +151,11 @@ class Octave (unohelper.Base, XOctave, XAddIn, XServiceInfo):
   def run (self, caller, name, *args):
     try:
       built = octave_core.build_args (args, lambda key: resolve (caller, key))
+      runner = octave_core.server ('cell',
+                                   octave_settings.read (self.ctx, 'cell'))
     except Exception as err:
       return ((octave_core.MESSAGE_PREFIX + str (err),),)
-    return octave_core.call (name, built, null_date (caller))
+    return octave_core.call (name, built, null_date (caller), runner)
 
   def octrange (self, caller, data, mode):
     try:

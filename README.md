@@ -3,9 +3,9 @@
 **Run GNU Octave analyses on the data in your LibreOffice Calc spreadsheet,
 from inside LibreOffice.**
 
-You stay in Calc. You select a range, pick one of your own Octave functions,
-and the result is written back into the sheet. Core Octave and whatever
-Octave packages you have installed stand behind those functions.
+You stay in Calc. You call one of your own Octave functions, or one from core
+Octave or an installed package, on the cells of your sheet, and the result is
+written back into the sheet.
 
 **This is not the same thing as
 [GNU-Octave-CalcLink](https://github.com/VAZMFB/GNU-Octave-CalcLink), which
@@ -20,40 +20,60 @@ nothing here installs with `pkg`. It installs into LibreOffice.
 ## Status
 
 **Early, and explicitly unmaintained until it proves it is wanted.** What
-works today is the spreadsheet function:
+works today are two spreadsheet functions:
 
-    =OCTAVE("mean", A1:C2)
     =OCTAVE("mean", A1:C2, 2, "omitnan")
+    =OCTAVE("interp1", OCTRANGE(A1:A10), B1:B10, "linear")
+    =OCTAVE("lasso", A1:D100, E1:E100, OCTRANGE(G1:H8, "pairs"))
 
-The range is the function's first argument and anything after it is passed
-along. A result of more than one cell is entered as an array formula: select
-the output range, then Ctrl+Shift+Enter, since Calc has no spilling. Results
+`OCTAVE` takes a function name and up to 16 arguments, in any order: numbers,
+text, or ranges. A range passed as it is arrives as its values. Wrapped in
+`OCTRANGE`, it keeps its dates, times, logical values and error cells; with
+the mode `"pairs"`, a range of two columns, names then values, is passed as
+name-value arguments. A range holding an error cell is refused, naming the
+cell.
+
+A result of more than one cell is entered as an array formula: select the
+output range, then Ctrl+Shift+Enter, since Calc has no spilling. Results
 recalculate when their source cells change, and a repeated call with
-unchanged inputs is answered from a cache without starting Octave at all.
+unchanged inputs is answered from a cache.
+
+**Every call runs in a sandbox**: no network, no other program can be started,
+nothing on disk can be written, and only the folders and packages you choose
+are visible. A call is stopped after 10 seconds. Without a working sandbox
+nothing is evaluated, and the cell says what is missing.
+
+The settings are under `org.octavecalc.Settings` in Tools > Options > Advanced
+> Open Expert Configuration: the folders holding your own functions, the
+packages to load, the memory and `/tmp` sizes, and the time limits.
 
 A menu-driven workbench for longer analyses, which a formula cannot host
 because Calc waits for a formula to return, is the next piece.
 
-## What it will need, once there is something to install
+## Requirements
 
-Two things have to line up on the user's machine:
+Linux only. On the user's machine:
 
 1. LibreOffice, with this extension installed.
-2. GNU Octave on `PATH`, with whatever Octave packages the user's own
-   functions rely on.
+2. GNU Octave, with `octave-cli` on `PATH`, and the Octave packages the
+   user's functions rely on.
+3. The Octave package `devtools`, version 0.2.0 or later, which runs the
+   sandbox.
+4. `bwrap` from the `bubblewrap` package, and `prlimit` from `util-linux`.
 
-If either is missing the extension says which one, rather than leaving a dead
-menu entry behind.
+Where a systemd user session is running, Octave is started through it, which
+lets the sandbox work when LibreOffice itself runs under an AppArmor profile.
 
-## Layout, as it fills in
+## Layout
 
 | Path | Holds |
 |------|-------|
 | `COPYING`, `LICENSE.txt` | GPL v3. |
-| `python/` | The component and the Octave runner behind it. |
-| `idl/` | The interface a cell formula calls, compiled into the package. |
-| `oxt/` | `description.xml`, `META-INF/`, the `.xcu` registration. |
+| `python/` | The component, the Octave runner behind it, and the settings reader. |
+| `idl/` | The interface the cell functions call, compiled into the package. |
+| `oxt/` | `description.xml`, `META-INF/`, the function registration and the settings schema. |
 | `tools/` | `build_oxt.py`, which compiles and packages the extension. |
+| `tests/` | Tests, run with `python3 -m unittest discover tests`. |
 
 ## Licence
 

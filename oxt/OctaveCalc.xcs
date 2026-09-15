@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The extension's settings, edited through Tools > Options > Advanced >
+     Expert Configuration under org.octavecalc.Settings.  They belong to the
+     machine, not to a document, so nothing in a spreadsheet can change which
+     folders and packages Octave sees. -->
+<oor:component-schema xmlns:oor="http://openoffice.org/2001/registry"
+                      xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                      oor:name="Settings" oor:package="org.octavecalc"
+                      xml:lang="en-US">
+ <templates/>
+ <component>
+  <!-- An empty list, not an absent value: Expert Configuration reads a list
+       before editing it, and an absent value cannot be read as one, so the
+       entry would refuse to open. -->
+  <prop oor:name="Folders" oor:type="oor:string-list">
+   <info><desc>Folders holding your own Octave functions, as absolute paths. They are on the load path, ahead of the packages.</desc></info>
+   <value/>
+  </prop>
+  <prop oor:name="Packages" oor:type="oor:string-list">
+   <info><desc>Installed Octave packages to load, in load order.</desc></info>
+   <value/>
+  </prop>
+  <prop oor:name="MemoryGB" oor:type="xs:int">
+   <info><desc>Memory a call may use beyond Octave's own size, in gigabytes.</desc></info>
+   <value>2</value>
+  </prop>
+  <prop oor:name="TmpGB" oor:type="xs:int">
+   <info><desc>Size of the in-memory /tmp inside the sandbox, in gigabytes.</desc></info>
+   <value>2</value>
+  </prop>
+  <prop oor:name="CellSeconds" oor:type="xs:int">
+   <info><desc>Seconds a cell formula's call may run before it is stopped.</desc></info>
+   <value>10</value>
+  </prop>
+  <prop oor:name="WorkbenchSeconds" oor:type="xs:int">
+   <info><desc>Seconds a workbench analysis may run before it is stopped.</desc></info>
+   <value>300</value>
+  </prop>
+ </component>
+</oor:component-schema>
