@@ -26,8 +26,8 @@ with the statistics package loaded, and the cells it returns are written on
 the main thread through AsyncCallback, as one undoable action.
 
 A macro can run a command without the dialog by passing InputRange, ResultsTo
-and GroupedBy ("columns" or "rows") as dispatch arguments; the results then
-overwrite whatever is in their way.
+and GroupedBy ("columns", "rows", "labels-data" or "data-labels") as dispatch
+arguments; the results then overwrite whatever is in their way.
 """
 
 import os
@@ -59,6 +59,13 @@ PROTOCOL = 'org.octavecalc.statistics:'
 
 # The analysis functions, mounted in the sandbox beside the user's folders.
 FOLDER = os.path.join (HERE, 'octave')
+
+# The Grouped by choices in the dialog, in the order of octave_stats.BY: their
+# control names, places and labels.
+RADIOS = (('columns', 70, 50, 'Columns'), ('rows', 150, 50, 'Rows'),
+          ('labels_data', 70, 64, 'Labels | Data'),
+          ('data_labels', 150, 64, 'Data | Labels'))
+RADIO_NAMES = [radio[0] for radio in RADIOS]
 
 # One analysis at a time.  A second would fight the first for the sheet.
 _busy = threading.Lock ()
@@ -207,7 +214,7 @@ class Analysis:
     and the answers."""
     model = self.create ('com.sun.star.awt.UnoControlDialogModel')
     model.Title = self.title
-    model.Width, model.Height = 250, 96
+    model.Width, model.Height = 250, 110
     order = [0]
 
     def add (kind, name, x, y, width, height, **properties):
@@ -228,13 +235,13 @@ class Analysis:
     add ('Edit', 'output', 70, 26, 120, 14, Text = answers['output'])
     add ('Button', 'output_pick', 194, 25, 50, 16, Label = 'Select...')
     add ('FixedText', 'by_label', 6, 51, 60, 10, Label = 'Grouped by:')
-    add ('RadioButton', 'columns', 70, 50, 55, 12, Label = 'Columns',
-         State = int (answers['by'] != 'rows'))
-    add ('RadioButton', 'rows', 130, 50, 55, 12, Label = 'Rows',
-         State = int (answers['by'] == 'rows'))
-    add ('Button', 'ok', 140, 74, 50, 16, Label = 'OK', DefaultButton = True,
+    # One group of radio buttons, since their tab indices follow each other
+    for (name, x, y, label), choice in zip (RADIOS, octave_stats.BY):
+      add ('RadioButton', name, x, y, 75, 12, Label = label,
+           State = int (answers['by'] == choice))
+    add ('Button', 'ok', 140, 88, 50, 16, Label = 'OK', DefaultButton = True,
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType', 'OK'))
-    add ('Button', 'cancel', 194, 74, 50, 16, Label = 'Cancel',
+    add ('Button', 'cancel', 194, 88, 50, 16, Label = 'Cancel',
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType',
                                     'CANCEL'))
 
@@ -246,10 +253,13 @@ class Analysis:
       dialog.getControl (field + '_pick').addActionListener (
         _Select (dialog, state, field))
     ended = dialog.execute ()
+    by = 'columns'
+    for name, choice in zip (RADIO_NAMES, octave_stats.BY):
+      if (dialog.getControl (name).getModel ().State):
+        by = choice
     answers = {'input': dialog.getControl ('input').getModel ().Text.strip (),
                'output': dialog.getControl ('output').getModel ().Text.strip (),
-               'by': ('rows' if dialog.getControl ('rows').getModel ().State
-                      else 'columns')}
+               'by': by}
     dialog.dispose ()
     if (state['action'] != 'cancel'):
       return state['action'], answers
@@ -304,10 +314,12 @@ class Analysis:
       where = source.getRangeAddress ()
       errors = source.queryFormulaCells (RESULT_ERROR).getRangeAddresses ()
       if (errors):
-        raise ValueError ('%s holds an error; the input range may hold '
-                          'numbers and empty cells only.'
-                          % octave_core.cell_name (errors[0].StartColumn,
-                                                   errors[0].StartRow))
+        allowed = octave_stats.ALLOWED.get (answers['by'],
+                                            octave_stats.ALLOWED['columns'])
+        raise ValueError ('%s holds an error; %s'
+                          % (octave_core.cell_name (errors[0].StartColumn,
+                                                    errors[0].StartRow),
+                             allowed))
       args = octave_stats.analysis_args (source.getDataArray (),
                                          answers['by'], where.StartColumn,
                                          where.StartRow)

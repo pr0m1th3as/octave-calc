@@ -35,22 +35,124 @@ import octave_core
 import octave_stats
 
 
-class DataArg (unittest.TestCase):
+def number (value):
+  return {'kind': 'number', 'value': value}
+
+
+def text (value):
+  return {'kind': 'text', 'value': value}
+
+
+EMPTY = {'kind': 'empty'}
+
+
+class GroupArgs (unittest.TestCase):
 
   def test_numbers_and_empty_cells (self):
-    arg = octave_stats.data_arg (((1.0, ''), (2.0, 3.0)), 0, 0)
-    self.assertEqual ((arg['rows'], arg['cols']), (2, 2))
-    self.assertEqual (arg['cells'], [{'kind': 'number', 'value': 1.0},
-                                     {'kind': 'empty'},
-                                     {'kind': 'number', 'value': 2.0},
-                                     {'kind': 'number', 'value': 3.0}])
+    args = octave_stats.group_args (((1.0, ''), (2.0, 3.0)), 'columns', 0, 0)
+    self.assertEqual ((args[0]['rows'], args[0]['cols'], args[0]['cells']),
+                      (2, 2, [number (1.0), EMPTY, number (2.0), number (3.0)]))
+
+  def test_no_header_no_names (self):
+    args = octave_stats.group_args (((1.0, 2.0),), 'columns', 0, 0)
+    self.assertEqual (len (args), 2)
+
+  def test_number_texts_read (self):
+    args = octave_stats.group_args ((('Inf', '-inf'), ('NaN', 1.0)),
+                                    'columns', 0, 0)
+    self.assertEqual (str (args[0]['cells']),
+                      str ([number (float ('inf')), number (float ('-inf')),
+                            number (float ('nan')), number (1.0)]))
+
+  def test_header_row_names (self):
+    args = octave_stats.group_args ((('A', '', 2020.0), (1.0, 2.0, 3.0)),
+                                    'columns', 0, 0)
+    self.assertEqual ((args[0]['rows'], args[2]['cells']),
+                      (1, [text ('A'), EMPTY, number (2020.0)]))
+
+  def test_header_column_names (self):
+    args = octave_stats.group_args ((('A', 1.0, 2.0), ('B', 3.0, 4.0)),
+                                    'rows', 0, 0)
+    self.assertEqual ((args[0]['cols'], args[2]['cells']),
+                      (2, [text ('A'), text ('B')]))
 
   def test_text_refused_by_cell (self):
     with self.assertRaises (ValueError) as raised:
-      octave_stats.data_arg (((1.0, 2.0), ('x', 3.0)), 2, 4)
+      octave_stats.group_args ((('A', 'B'), (1.0, 2.0), ('x', 3.0)),
+                               'columns', 2, 4)
     self.assertEqual (str (raised.exception),
-                      'C6 holds the text "x"; the input range may hold numbers '
-                      'and empty cells only.')
+                      'C7 holds the text "x"; the input range may hold group '
+                      'names in its first row, then numbers and empty cells '
+                      'only.')
+
+  def test_text_refused_by_cell_beside_header (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.group_args ((('A', 1.0), ('B', 'x')), 'rows', 2, 4)
+    self.assertEqual (str (raised.exception),
+                      'D6 holds the text "x"; the input range may hold group '
+                      'names in its first column, then numbers and empty cells '
+                      'only.')
+
+  def test_header_only_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.group_args ((('A', 'B'),), 'columns', 0, 0)
+    self.assertEqual (str (raised.exception),
+                      'the input range holds only its header.')
+
+
+class LabelsArgs (unittest.TestCase):
+
+  def test_data_then_labels (self):
+    args = octave_stats.labels_args (((1.0, 'a'), ('', 'b'), (2.0, 3.0)),
+                                     'data-labels', 0, 0)
+    self.assertEqual ((args[0]['rows'], args[0]['cols'], args[0]['cells']),
+                      (3, 2, [number (1.0), text ('a'), EMPTY, text ('b'),
+                              number (2.0), number (3.0)]))
+
+  def test_labels_then_data (self):
+    args = octave_stats.labels_args ((('a', 1.0), (2.0, 3.0)), 'labels-data',
+                                     0, 0)
+    self.assertEqual (args[0]['cells'], [number (1.0), text ('a'),
+                                         number (3.0), number (2.0)])
+
+  def test_labels_passed (self):
+    args = octave_stats.labels_args (((1.0, 'a'),), 'data-labels', 0, 0)
+    self.assertEqual (args[1], {'type': 'string', 'value': 'labels'})
+
+  def test_number_texts_read (self):
+    args = octave_stats.labels_args ((('-Inf', 'a'),), 'data-labels', 0, 0)
+    self.assertEqual (args[0]['cells'][0], number (float ('-inf')))
+
+  def test_header_ignored (self):
+    args = octave_stats.labels_args ((('Group', 'Value'), ('a', 1.0)),
+                                     'labels-data', 0, 0)
+    self.assertEqual (args[0]['cells'], [number (1.0), text ('a')])
+
+  def test_header_only_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.labels_args ((('Value', 'Group'),), 'data-labels', 0, 0)
+    self.assertEqual (str (raised.exception),
+                      'the input range holds only its header.')
+
+  def test_width_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.labels_args (((1.0, 'a', 2.0),), 'data-labels', 0, 0)
+    self.assertEqual (str (raised.exception),
+                      'grouped by labels, the input range must be two columns '
+                      'wide: the values and their group labels.')
+
+  def test_text_value_refused_by_cell (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.labels_args (((1.0, 'a'), ('x', 'b')), 'data-labels', 2, 4)
+    self.assertEqual (str (raised.exception),
+                      'C6 holds the text "x"; the values may be numbers or '
+                      'empty cells, and the group labels text or numbers.')
+
+  def test_value_without_label_refused_by_cell (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.labels_args ((('a', 1.0), ('', 2.0)), 'labels-data', 2, 4)
+    self.assertEqual (str (raised.exception),
+                      'D6 holds a value with no group label in C6.')
 
 
 class AnalysisArgs (unittest.TestCase):
@@ -63,7 +165,8 @@ class AnalysisArgs (unittest.TestCase):
     with self.assertRaises (ValueError) as raised:
       octave_stats.analysis_args (((1.0, 2.0),), 'diagonal', 0, 0)
     self.assertEqual (str (raised.exception),
-                      'grouped by must be "columns" or "rows".')
+                      'grouped by must be "columns", "rows", "labels-data" or '
+                      '"data-labels".')
 
 
 class Reason (unittest.TestCase):
@@ -115,6 +218,19 @@ class KruskalWallisInOctave (unittest.TestCase):
     self.assertEqual (table[0][0], 'Kruskal-Wallis Test')
     self.assertEqual (table[3][:4], ('Column 1', 3.0, 2.0, 2.0))
     self.assertEqual (table[4][:4], ('Column 2', 2.0, 4.5, 4.5))
+
+  def test_names_reach_cells (self):
+    table = self.run_analysis ((('A', '', 2020.0), (1.0, 4.0, 7.0),
+                                (2.0, 5.0, 8.0)), 'columns')
+    self.assertEqual ([line[0] for line in table[3:6]],
+                      ['A', 'Column 2', '2020'])
+
+  def test_labels_reach_cells (self):
+    table = self.run_analysis ((('Value', 'Group'), (7.0, 'b'), (1.0, 2.0),
+                                ('', ''), (8.0, 'b'), (2.0, 2.0)),
+                               'data-labels')
+    self.assertEqual ((table[3][:3], table[4][:3]),
+                      (('b', 2.0, 7.5), ('2', 2.0, 1.5)))
 
   def test_refusal_names_no_function (self):
     with self.assertRaises (RuntimeError) as raised:
