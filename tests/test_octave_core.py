@@ -223,6 +223,80 @@ class RangeKey (unittest.TestCase):
       'octrange|data|$Sheet1.$A$1:$A$2|00000000'))
 
 
+class Labels (unittest.TestCase):
+
+  def test_same_sheet (self):
+    self.assertEqual (octave_core.range_label (KEY, 'Sheet1'),
+                      'A1:A2 (data)')
+
+  def test_other_sheet (self):
+    self.assertEqual (octave_core.range_label (KEY, 'Sheet2'),
+                      'Sheet1.A1:A2 (data)')
+
+  def test_quoted_sheet (self):
+    key = octave_core.range_key ('pairs', "$'It''s here'.$G$1:$H$3", DATES)
+    self.assertEqual (octave_core.range_label (key, "It's here"),
+                      'G1:H3 (pairs)')
+
+  def test_single_cell (self):
+    key = octave_core.range_key ('data', '$Sheet1.$C$1', DATES)
+    self.assertEqual (octave_core.range_label (key, 'Sheet1'), 'C1 (data)')
+
+  def test_not_a_key (self):
+    self.assertIsNone (octave_core.range_label ('abc', 'Sheet1'))
+
+  def test_format_escapes_every_character (self):
+    self.assertEqual (octave_core.label_format ('A1 (data)'),
+                      'General;-General;General;'
+                      '\\A\\1\\ \\(\\d\\a\\t\\a\\)')
+
+  def test_format_round_trip (self):
+    label = 'Sheet1.A1:A2 (pairs)'
+    self.assertEqual (octave_core.label_of_format (
+      octave_core.label_format (label)), label)
+
+  def test_format_as_calc_keeps_it (self):
+    # Read back from a cell in LibreOffice 25.2: the escape before the space
+    # is gone
+    code = ('General;-General;General;'
+            '\\S\\h\\e\\e\\t\\2\\.\\A\\1\\:\\A\\3 \\(\\d\\a\\t\\a\\)')
+    self.assertEqual (octave_core.label_of_format (code),
+                      'Sheet2.A1:A3 (data)')
+
+  def test_format_after_reload (self):
+    # Read back from a cell of a reloaded document in LibreOffice 25.2
+    code = '[>0]General;[<0]-General;General;"Sheet2.A1:A3 (data)"'
+    self.assertEqual (octave_core.label_of_format (code),
+                      'Sheet2.A1:A3 (data)')
+
+  def test_format_other_condition (self):
+    self.assertIsNone (octave_core.label_of_format (
+      '[>5]General;[<0]-General;General;"J1:J4 (data)"'))
+
+  def test_format_semicolon_in_label (self):
+    label = 'Sheet;1.A1:A2 (data)'
+    self.assertEqual (octave_core.label_of_format (
+      octave_core.label_format (label)), label)
+
+  def test_format_quoted (self):
+    self.assertEqual (octave_core.label_of_format (
+      'General;-General;General;"J1:J4 (data)"'), 'J1:J4 (data)')
+
+  def test_format_bare_letter (self):
+    self.assertIsNone (octave_core.label_of_format (
+      'General;-General;General;\\J1 \\(\\d\\a\\t\\a\\)'))
+
+  def test_other_format (self):
+    self.assertIsNone (octave_core.label_of_format ('DD/MM/YYYY'))
+
+  def test_general_alone (self):
+    self.assertIsNone (octave_core.label_of_format ('General'))
+
+  def test_literal_without_mode (self):
+    self.assertIsNone (octave_core.label_of_format (
+      octave_core.label_format ('A1:A2')))
+
+
 class BuildArgs (unittest.TestCase):
 
   def test_none (self):

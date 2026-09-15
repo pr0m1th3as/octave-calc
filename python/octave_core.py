@@ -373,6 +373,108 @@ def recall_range (key):
   return _RANGES.get (key)
 
 
+# A label format: numbers show as they would under the default format, and
+# text, which in a labelled cell is an OCTRANGE key, shows as the label.
+LABEL_NUMBERS = 'General;-General;General;'
+
+LABEL_RE = re.compile (r' \((data|pairs)\)$')
+
+
+def range_label (key, sheet = None):
+  """The label shown in a cell holding the OCTRANGE KEY: the range's address
+  and mode, as J1:J4 (data), naming the range's sheet unless it is SHEET."""
+  parts = key_parts (key)
+  if (parts is None):
+    return None
+  mode, address = parts
+  where, _, cells = address.rpartition ('.')
+  where = where.lstrip ('$')
+  name = where
+  if (len (name) > 1 and name[0] == "'" and name[-1] == "'"):
+    name = name[1:-1].replace ("''", "'")
+  cells = cells.replace ('$', '')
+  if (name != sheet):
+    cells = '%s.%s' % (where, cells)
+  return '%s (%s)' % (cells, mode)
+
+
+def label_format (label):
+  """The number format code that shows LABEL in place of text.  Every
+  character of the label is escaped, so no sheet name can break the code."""
+  return LABEL_NUMBERS + ''.join ('\\' + char for char in label)
+
+
+# Characters that mean something in a format code even unescaped, so that a
+# text section holding one of them bare is not a label.
+FORMAT_CHARS = '@*_[];"\\'
+
+
+# The number sections of a label format as Calc may report them: as written,
+# or, once the document is reloaded, each behind its condition.
+LABEL_SECTIONS = (re.compile (r'^(\[>0\])?General$'),
+                  re.compile (r'^(\[<0\])?-General$'),
+                  re.compile (r'^General$'))
+
+
+def format_sections (code):
+  """The sections of a number format code, split at the semicolons outside
+  quotes and escapes."""
+  sections, current, quoted, i = [], [], False, 0
+  while (i < len (code)):
+    char = code[i]
+    if (char == '\\' and not quoted and i + 1 < len (code)):
+      current.append (code[i:i + 2])
+      i += 2
+      continue
+    if (char == '"'):
+      quoted = not quoted
+    if (char == ';' and not quoted):
+      sections.append (''.join (current))
+      current = []
+    else:
+      current.append (char)
+    i += 1
+  sections.append (''.join (current))
+  return sections
+
+
+def label_of_format (code):
+  """The label a format code made by label_format shows, or None for any
+  other format.  Calc does not keep the code as written: in the session that
+  set it the escape before a space is gone, and after a reload the number
+  sections carry conditions and the label is quoted.  So the code is read by
+  its sections, and the text section decoded: an escaped character or a
+  quoted run as itself, bare punctuation and spaces as themselves."""
+  sections = format_sections (code)
+  if (len (sections) != 4
+      or not all (pattern.match (section) for pattern, section
+                  in zip (LABEL_SECTIONS, sections))):
+    return None
+  text = sections[3]
+  label = []
+  i = 0
+  while (i < len (text)):
+    char = text[i]
+    if (char == '\\'):
+      if (i + 1 == len (text)):
+        return None
+      label.append (text[i + 1])
+      i += 2
+    elif (char == '"'):
+      end = text.find ('"', i + 1)
+      if (end < 0):
+        return None
+      label.append (text[i + 1:end])
+      i = end + 1
+    elif (char.isalnum () or char in FORMAT_CHARS):
+      return None
+    else:
+      label.append (char)
+      i += 1
+  label = ''.join (label)
+  return label if LABEL_RE.search (label) else None
+
+
 def iso_date (date):
   """A com.sun.star.util.Date, or anything with Year, Month and Day, written
   YYYY-MM-DD."""

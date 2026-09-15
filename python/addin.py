@@ -34,6 +34,8 @@ import unohelper
 
 from com.sun.star.lang import XServiceInfo, Locale
 from com.sun.star.sheet import XAddIn
+from com.sun.star.awt import XCallback
+from com.sun.star.sheet.FormulaResult import STRING as RESULT_STRING
 
 sys.path.insert (0, os.path.dirname (os.path.abspath (__file__)))
 import octave_core
@@ -134,6 +136,105 @@ def resolve (caller, key):
   return where.StartColumn, where.StartRow, rows
 
 
+# Format codes are made with English keywords, so they are added under an
+# English locale whatever the document's language.
+ENGLISH = Locale ('en', 'US', '')
+
+
+def format_key (formats, code):
+  key = formats.queryKey (code, ENGLISH, False)
+  if (key == -1):
+    key = formats.addNew (code, ENGLISH)
+  return key
+
+
+def label_sheet (sheet, formats):
+  """Show every cell of SHEET holding an OCTRANGE key as its range's label,
+  and return a cell that no longer holds one to the default format.  A cell
+  the user formatted is left alone."""
+  wanted = {}
+  found = sheet.queryFormulaCells (RESULT_STRING)
+  for area in found.getRangeAddresses ():
+    block = sheet.getCellRangeByPosition (area.StartColumn, area.StartRow,
+                                          area.EndColumn, area.EndRow)
+    for r, values in enumerate (block.getDataArray ()):
+      for c, value in enumerate (values):
+        if (isinstance (value, str) and octave_core.key_parts (value)):
+          wanted[(area.StartColumn + c, area.StartRow + r)] = (
+            octave_core.range_label (value, sheet.Name))
+
+  labelled = {}
+  parts = sheet.getCellFormatRanges ()
+  for index in range (parts.Count):
+    part = parts.getByIndex (index)
+    shown = octave_core.label_of_format (
+      formats.getByKey (part.NumberFormat).FormatString)
+    if (shown is None):
+      continue
+    area = part.getRangeAddress ()
+    for row in range (area.StartRow, area.EndRow + 1):
+      for column in range (area.StartColumn, area.EndColumn + 1):
+        labelled[(column, row)] = shown
+
+  for (column, row) in labelled:
+    if ((column, row) not in wanted):
+      sheet.getCellByPosition (column, row).NumberFormat = 0
+  for (column, row), label in wanted.items ():
+    cell = sheet.getCellByPosition (column, row)
+    # Compared as labels, since Calc rewrites the code it was given
+    if ((column, row) in labelled):
+      if (labelled[(column, row)] == label):
+        continue
+    elif (cell.NumberFormat % 10000 != 0):
+      continue
+    cell.NumberFormat = format_key (formats, octave_core.label_format (label))
+
+
+def label_document (document):
+  """Label every sheet of DOCUMENT, invisibly to its undo history and without
+  marking an unmodified document modified."""
+  undo = document.getUndoManager ()
+  modified = document.isModified ()
+  undo.lock ()
+  try:
+    for index in range (document.Sheets.Count):
+      label_sheet (document.Sheets.getByIndex (index), document.NumberFormats)
+  finally:
+    undo.unlock ()
+    if (not modified and document.isModified ()):
+      document.setModified (False)
+
+
+class LabelPass (unohelper.Base, XCallback):
+  """Labels OCTRANGE cells on the main thread once calculation is over, since
+  an Add-In is not told which cell called it.  Every OCTRANGE call of one
+  calculation shares a single pass."""
+
+  def __init__ (self):
+    self.documents = []
+    self.scheduled = False
+
+  def request (self, ctx, document):
+    if (not any (document == known for known in self.documents)):
+      self.documents.append (document)
+    if (not self.scheduled):
+      self.scheduled = True
+      ctx.ServiceManager.createInstanceWithContext (
+        'com.sun.star.awt.AsyncCallback', ctx).addCallback (self, None)
+
+  def notify (self, unused):
+    documents, self.documents, self.scheduled = self.documents, [], False
+    for document in documents:
+      try:
+        label_document (document)
+      except Exception:
+        # A caller that is not a spreadsheet document, or one closed since
+        pass
+
+
+LABELS = LabelPass ()
+
+
 def null_date (caller):
   try:
     return octave_core.iso_date (caller.NullDate)
@@ -165,6 +266,7 @@ class Octave (unohelper.Base, XOctave, XAddIn, XServiceInfo):
       key = octave_core.range_key (mode, data.AbsoluteName, rows)
       octave_core.remember_range (key, address.StartColumn, address.StartRow,
                                   rows)
+      LABELS.request (self.ctx, caller)
       return key
     except Exception as err:
       return octave_core.MESSAGE_PREFIX + str (err)
