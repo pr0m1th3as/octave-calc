@@ -32,6 +32,11 @@ text, or ranges. A range passed as it is arrives as its values. Wrapped in
 the mode `"pairs"`, a range of two columns, names then values, is passed as
 name-value arguments.
 
+A cell holding `OCTRANGE` alone shows its range and mode, such as
+`J1:J4 (data)`, while its value is still what `OCTAVE` reads, so a formula can
+refer to that cell instead of repeating `OCTRANGE`. A cell you have formatted
+yourself keeps your format.
+
 A `NaN` result shows as `#N/A`, and `Inf` or `-Inf` as `#NUM!`. Read through
 `OCTRANGE`, a `#N/A` cell is a missing value again, `NaN` or `NaT` for a date,
 while any other error cell is refused, naming the cell. Calc stops a plain
