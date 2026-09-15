@@ -223,6 +223,36 @@ class RangeKey (unittest.TestCase):
       'octrange|data|$Sheet1.$A$1:$A$2|00000000'))
 
 
+class NumericTexts (unittest.TestCase):
+
+  def test_texts_in_numbers (self):
+    rows = octave_core.numeric_texts ([[number (1.0), text ('Inf')],
+                                       [text ('-Inf'), EMPTY]])
+    self.assertEqual (rows, [[number (1.0), number (float ('inf'))],
+                             [number (float ('-inf')), EMPTY]])
+
+  def test_nan_text (self):
+    value = octave_core.numeric_texts ([[text ('NaN'), number (2.0)]])[0][0]
+    self.assertTrue (value['kind'] == 'number' and math.isnan (value['value']))
+
+  def test_any_capitals (self):
+    rows = octave_core.numeric_texts ([[text ('INF'), number (2.0)]])
+    self.assertEqual (rows[0][0], number (float ('inf')))
+
+  def test_all_texts (self):
+    rows = octave_core.numeric_texts ([[text ('Inf'), text ('-Inf')]])
+    self.assertEqual (rows, [[number (float ('inf')),
+                              number (float ('-inf'))]])
+
+  def test_other_text_leaves_range (self):
+    rows = [[text ('Inf'), text ('abc'), number (1.0)]]
+    self.assertEqual (octave_core.numeric_texts (rows), rows)
+
+  def test_date_leaves_range (self):
+    rows = [[text ('Inf'), {'kind': 'date', 'value': 45658.0}]]
+    self.assertEqual (octave_core.numeric_texts (rows), rows)
+
+
 class Labels (unittest.TestCase):
 
   def test_same_sheet (self):
@@ -666,6 +696,13 @@ class Server (unittest.TestCase):
                                     number (1.0)]])
     self.assertEqual (octave_core.call ('isnan', [data], runner = self.runner),
                       ((1.0, 0.0),))
+
+  def test_infinite_numbers_reach_octave (self):
+    rows = octave_core.numeric_texts ([[number (1.0), text ('Inf'),
+                                        text ('-Inf')]])
+    self.assertEqual (octave_core.call ('isinf', [octave_core.range_arg (rows)],
+                                        runner = self.runner),
+                      ((0.0, 1.0, 1.0),))
 
   def test_started_again_after_stop (self):
     self.runner.stop ()

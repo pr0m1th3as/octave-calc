@@ -190,6 +190,30 @@ def cell_kind (content, result, error, value, text, format_type,
   return {'kind': 'number', 'value': value}
 
 
+# Text a spreadsheet holds in place of a non-finite number.  datatypes writes
+# an infinity to ODS and XLSX this way, since Calc loads a non-finite number
+# from a file as 0.
+NUMBER_TEXTS = {'inf': float ('inf'), '-inf': float ('-inf'),
+                'nan': float ('nan')}
+
+
+def number_text (cell):
+  return cell['kind'] == 'text' and cell['value'].lower () in NUMBER_TEXTS
+
+
+def numeric_texts (rows):
+  """ROWS with each text cell reading Inf, -Inf or NaN, in any capitals, made
+  that number, when every other cell of the range is a number or empty.  Any
+  other range comes back as it was."""
+  cells = [cell for row in rows for cell in row]
+  if (not any (number_text (cell) for cell in cells)
+      or any (not number_text (cell) and cell['kind'] not in ('number', 'empty')
+              for cell in cells)):
+    return rows
+  return [[{'kind': 'number', 'value': NUMBER_TEXTS[cell['value'].lower ()]}
+           if number_text (cell) else cell for cell in row] for row in rows]
+
+
 def plain_cell (value):
   """A range cell known by its value alone, as getDataArray and a sequence
   argument deliver it, where an empty cell is empty text."""

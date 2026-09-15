@@ -109,7 +109,7 @@ def read_range (caller, data):
                                          else '',
                                          format_type, format_string))
     rows.append (row)
-  return rows
+  return octave_core.numeric_texts (rows)
 
 
 def resolve (caller, key):
