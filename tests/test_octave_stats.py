@@ -53,9 +53,9 @@ class GroupArgs (unittest.TestCase):
     self.assertEqual ((args[0]['rows'], args[0]['cols'], args[0]['cells']),
                       (2, 2, [number (1.0), EMPTY, number (2.0), number (3.0)]))
 
-  def test_no_header_no_names (self):
+  def test_no_header_gives_empty_names (self):
     args = octave_stats.group_args (((1.0, 2.0),), 'columns', 0, 0)
-    self.assertEqual (len (args), 2)
+    self.assertEqual ((len (args), args[2]), (3, octave_stats.NO_NAMES))
 
   def test_number_texts_read (self):
     args = octave_stats.group_args ((('Inf', '-inf'), ('NaN', 1.0)),
@@ -117,7 +117,8 @@ class LabelsArgs (unittest.TestCase):
 
   def test_labels_passed (self):
     args = octave_stats.labels_args (((1.0, 'a'),), 'data-labels', 0, 0)
-    self.assertEqual (args[1], {'type': 'string', 'value': 'labels'})
+    self.assertEqual (args[1:], [{'type': 'string', 'value': 'labels'},
+                                 octave_stats.NO_NAMES])
 
   def test_number_texts_read (self):
     args = octave_stats.labels_args ((('-Inf', 'a'),), 'data-labels', 0, 0)
@@ -153,6 +154,71 @@ class LabelsArgs (unittest.TestCase):
       octave_stats.labels_args ((('a', 1.0), ('', 2.0)), 'labels-data', 2, 4)
     self.assertEqual (str (raised.exception),
                       'D6 holds a value with no group label in C6.')
+
+
+class Registry (unittest.TestCase):
+
+  def test_every_analysis_is_complete (self):
+    for command, analysis in octave_stats.ANALYSES.items ():
+      self.assertEqual (sorted (analysis),
+                        ['category', 'function', 'layouts', 'options',
+                         'summary', 'title'], command)
+      self.assertIn (analysis['category'], octave_stats.CATEGORIES, command)
+      self.assertTrue (set (analysis['layouts']) <= set (octave_stats.BY),
+                       command)
+
+  def test_analyses_of_category (self):
+    self.assertEqual (octave_stats.analyses_of ('Group comparisons'),
+                      ('KruskalWallis',))
+
+  def test_analyses_of_empty_category (self):
+    self.assertEqual (octave_stats.analyses_of ('Distributions'), ())
+
+  def test_first_analysis (self):
+    self.assertEqual (octave_stats.first_analysis (), 'KruskalWallis')
+
+  def test_option_defaults (self):
+    self.assertEqual (octave_stats.option_defaults ('KruskalWallis'), {})
+
+  def test_option_args_without_options (self):
+    self.assertEqual (octave_stats.option_args ('KruskalWallis', {}), [])
+
+
+class DeclaredOptions (unittest.TestCase):
+  """The option mechanism, against a declaration of its own, since no
+  analysis declares options yet."""
+
+  DECLARED = {'category': 'Group comparisons', 'title': 'Test', 'function': 'f',
+              'summary': 's', 'layouts': ('columns',),
+              'options': ({'name': 'ctype', 'label': 'Adjustment:',
+                           'choices': (('holm', 'Holm'),
+                                       ('bonferroni', 'Bonferroni')),
+                           'default': 'holm'},)}
+
+  def setUp (self):
+    octave_stats.ANALYSES['Declared'] = self.DECLARED
+
+  def tearDown (self):
+    del octave_stats.ANALYSES['Declared']
+
+  def test_defaults (self):
+    self.assertEqual (octave_stats.option_defaults ('Declared'),
+                      {'ctype': 'holm'})
+
+  def test_chosen_value_passed (self):
+    self.assertEqual (octave_stats.option_args ('Declared',
+                                                {'ctype': 'bonferroni'}),
+                      [{'type': 'string', 'value': 'bonferroni'}])
+
+  def test_default_passed_when_unset (self):
+    self.assertEqual (octave_stats.option_args ('Declared', {}),
+                      [{'type': 'string', 'value': 'holm'}])
+
+  def test_value_not_offered_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.option_args ('Declared', {'ctype': 'tukey'})
+    self.assertEqual (str (raised.exception),
+                      'tukey is not a value of "ctype".')
 
 
 class AnalysisArgs (unittest.TestCase):

@@ -45,9 +45,70 @@ ALLOWED = {'columns': 'the input range may hold group names in its first row, '
            'data-labels': 'the values may be numbers or empty cells, and the '
                           'group labels text or numbers.'}
 
-# Each menu command, against its title and the Octave function that runs it.
-ANALYSES = {'KruskalWallis': ('Kruskal-Wallis Test',
-                              'octave_calc_kruskalwallis')}
+# The categories, in the order the dialog lists them.
+CATEGORIES = ('Group comparisons', 'Association tests', 'Regression models',
+              'Multivariate analyses', 'Distributions')
+
+# Every analysis, by the command that runs it, in the order its category lists
+# them.  Adding one is this entry plus its Octave function, and nothing else:
+#
+#   category  which list it appears under
+#   title     the dialog's title and the first cell of the results
+#   function  the Octave function in the octave folder
+#   summary   one line, shown under the list
+#   layouts   the ways it takes its input range, from BY
+#   options   what the user chooses besides the ranges, each
+#             {'name', 'label', 'choices': ((value, label), ...), 'default'},
+#             passed to the function as strings after the range and the layout
+ANALYSES = {
+  'KruskalWallis': {
+    'category': 'Group comparisons',
+    'title': 'Kruskal-Wallis Test',
+    'function': 'octave_calc_kruskalwallis',
+    'summary': 'Ranks of three or more groups, with pairwise comparisons.',
+    'layouts': BY,
+    'options': ()}}
+
+
+def first_analysis ():
+  """The command the dialog opens on: the first analysis of the first
+  category that has one."""
+  for category in CATEGORIES:
+    commands = analyses_of (category)
+    if (commands):
+      return commands[0]
+  return None
+
+
+def analyses_of (category):
+  """The commands of CATEGORY, in order."""
+  return tuple (command for command, analysis in ANALYSES.items ()
+                if analysis['category'] == category)
+
+
+def option_defaults (command):
+  """What the options of COMMAND hold before the user touches them."""
+  return dict ((option['name'], option['default'])
+               for option in ANALYSES[command]['options'])
+
+
+def option_args (command, values):
+  """The octave_call arguments for the options of COMMAND, in declared order,
+  from VALUES as the dialog holds them.  An option the user has not set takes
+  its default.  Raises ValueError on a value the option does not offer."""
+  args = []
+  for option in ANALYSES[command]['options']:
+    value = values.get (option['name'], option['default'])
+    if (value not in [choice for choice, unused in option['choices']]):
+      raise ValueError ('%s is not a value of "%s".' % (value, option['name']))
+    args.append ({'type': 'string', 'value': value})
+  return args
+
+
+# An analysis function always takes the range, the layout and the group names,
+# so that the options an analysis declares follow at fixed positions.  This
+# stands for no names at all: empty text, since a range must hold a cell.
+NO_NAMES = {'type': 'string', 'value': ''}
 
 
 def is_name (value):
@@ -93,15 +154,15 @@ def group_args (rows, by, column, row):
     body, left, top = rows, column, row
   if (not body or not body[0]):
     raise header_only ()
-  args = [octave_core.range_arg (
+  names = NO_NAMES
+  if (named):
+    names = octave_core.range_arg (
+      [[octave_core.plain_cell (value) for value in header]])
+  return [octave_core.range_arg (
             [[number_cell (value, left + c, top + r, ALLOWED[by])
               for c, value in enumerate (values)]
              for r, values in enumerate (body)]),
-          {'type': 'string', 'value': by}]
-  if (named):
-    args.append (octave_core.range_arg (
-      [[octave_core.plain_cell (value) for value in header]]))
-  return args
+          {'type': 'string', 'value': by}, names]
 
 
 def labels_args (rows, by, column, row):
@@ -126,7 +187,8 @@ def labels_args (rows, by, column, row):
                         % (octave_core.cell_name (column + 1 - at, row + r),
                            octave_core.cell_name (column + at, row + r)))
     cells.append ([number, octave_core.plain_cell (label)])
-  return [octave_core.range_arg (cells), {'type': 'string', 'value': 'labels'}]
+  return [octave_core.range_arg (cells), {'type': 'string', 'value': 'labels'},
+          NO_NAMES]
 
 
 def analysis_args (rows, by, column, row):

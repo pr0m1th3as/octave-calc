@@ -18,12 +18,16 @@
 """Data > Statistics with GNU Octave: the menu commands, their dialog, and the
 results written into the sheet.
 
-A protocol handler for org.octavecalc.statistics: commands, which Addons.xcu
-places in the Data menu directly below Calc's Statistics.  The dialog follows
-Calc's own statistics dialogs.  Each command runs one Octave function from the
-octave folder beside this file, on a worker thread in its own sandboxed server
-with the statistics package loaded, and the cells it returns are written on
-the main thread through AsyncCallback, as one undoable action.
+A protocol handler for org.octavecalc.statistics: commands.  Addons.xcu puts
+one entry in the Data menu directly below Calc's Statistics, with no submenu,
+since a merged entry that opens one takes no icon; the analyses are chosen in
+the dialog, which holds the categories and their analyses beside the ranges
+and the chosen analysis's options.  Each analysis keeps a command of its own
+all the same, so a macro can dispatch it.  An analysis runs one Octave
+function from the octave folder beside this file, on a worker thread in its
+own sandboxed server with the statistics package loaded, and the cells it
+returns are written on the main thread through AsyncCallback, as one undoable
+action.
 
 A macro can run a command without the dialog by passing InputRange, ResultsTo
 and GroupedBy ("columns", "rows", "labels-data" or "data-labels") as dispatch
@@ -38,7 +42,7 @@ import traceback
 import uno
 import unohelper
 
-from com.sun.star.awt import XActionListener, XCallback
+from com.sun.star.awt import XActionListener, XCallback, XItemListener
 from com.sun.star.awt.MessageBoxButtons import BUTTONS_OK, BUTTONS_YES_NO
 from com.sun.star.awt.MessageBoxResults import YES
 from com.sun.star.frame import XDispatch, XDispatchProvider
@@ -60,12 +64,19 @@ PROTOCOL = 'org.octavecalc.statistics:'
 # The analysis functions, mounted in the sandbox beside the user's folders.
 FOLDER = os.path.join (HERE, 'octave')
 
+# The menu entry's own title, before an analysis is chosen.
+MENU_TITLE = 'Statistics with GNU Octave'
+
 # The Grouped by choices in the dialog, in the order of octave_stats.BY: their
 # control names, places and labels.
-RADIOS = (('columns', 70, 50, 'Columns'), ('rows', 150, 50, 'Rows'),
-          ('labels_data', 70, 64, 'Labels | Data'),
-          ('data_labels', 150, 64, 'Data | Labels'))
+RADIOS = (('columns', 166, 84, 'Columns'), ('rows', 246, 84, 'Rows'),
+          ('labels_data', 166, 98, 'Labels | Data'),
+          ('data_labels', 246, 98, 'Data | Labels'))
 RADIO_NAMES = [radio[0] for radio in RADIOS]
+
+# Option rows the dialog holds ready, since a control cannot be added once it
+# is open.  An analysis may declare no more options than this.
+OPTION_SLOTS = 3
 
 # One analysis at a time.  A second would fight the first for the sheet.
 _busy = threading.Lock ()
@@ -90,6 +101,19 @@ class _Select (unohelper.Base, XActionListener):
   def actionPerformed (self, unused):
     self.state['action'] = self.field
     self.dialog.endExecute ()
+
+  def disposing (self, unused):
+    pass
+
+
+class _Chosen (unohelper.Base, XItemListener):
+  """A list whose selection changes the rest of the dialog."""
+
+  def __init__ (self, fn):
+    self.fn = fn
+
+  def itemStateChanged (self, unused):
+    self.fn ()
 
   def disposing (self, unused):
     pass
@@ -142,13 +166,25 @@ def bounds (address):
 
 
 class Analysis:
-  """One run of the analysis COMMAND names, in the Calc window FRAME."""
+  """One visit to the Statistics menu in the Calc window FRAME, running the
+  analysis the user chooses in the dialog, or the one COMMAND names."""
 
   def __init__ (self, ctx, frame, command):
     self.ctx = ctx
     self.frame = frame
     self.document = frame.getController ().getModel ()
-    self.title, self.function = octave_stats.ANALYSES[command]
+    self.command = command if command in octave_stats.ANALYSES else None
+
+  @property
+  def title (self):
+    """What the dialog, its messages and the undo entry are called."""
+    if (self.command is None):
+      return MENU_TITLE
+    return octave_stats.ANALYSES[self.command]['title']
+
+  @property
+  def function (self):
+    return octave_stats.ANALYSES[self.command]['function']
 
   def create (self, service):
     return self.ctx.ServiceManager.createInstanceWithContext (service,
@@ -181,12 +217,18 @@ class Analysis:
     if (problem):
       self.message (sentence (problem))
       return
-    if ('InputRange' in options):
-      self.launch ({'input': options['InputRange'],
+    if ('InputRange' in options and self.command):
+      self.launch ({'command': self.command,
+                    'input': options['InputRange'],
                     'output': options.get ('ResultsTo', ''),
-                    'by': options.get ('GroupedBy', 'columns')}, False)
+                    'by': options.get ('GroupedBy', 'columns'),
+                    'options': octave_stats.option_defaults (self.command)},
+                   False)
       return
-    self.prompt ({'input': self.selected (), 'output': '', 'by': 'columns'})
+    command = self.command or octave_stats.first_analysis ()
+    self.prompt ({'command': command, 'input': self.selected (), 'output': '',
+                  'by': 'columns',
+                  'options': octave_stats.option_defaults (command)})
 
   def selected (self):
     """The selected range, as the default input range, or nothing."""
@@ -201,20 +243,25 @@ class Analysis:
   def prompt (self, answers):
     """Ask, then run, or hand the sheet to the mouse and come back."""
     action, answers = self.ask (answers)
+    self.command = answers['command']
     if (action == 'cancel'):
       return
     if (action in ('input', 'output')):
       self.pick (action, answers)
       return
+    if (answers['command'] is None):
+      self.refuse ('that category holds no analyses yet.', answers, True)
+      return
     self.launch (answers, True)
 
   def ask (self, answers):
-    """The dialog, laid out as Calc's statistics dialogs are.  Returns what
-    ended it, 'ok', 'cancel', or the field whose Select button was pressed,
-    and the answers."""
+    """The dialog: the categories and their analyses on one side, the ranges
+    and the chosen analysis's options on the other.  Returns what ended it,
+    'ok', 'cancel', or the field whose Select button was pressed, and the
+    answers."""
     model = self.create ('com.sun.star.awt.UnoControlDialogModel')
-    model.Title = self.title
-    model.Width, model.Height = 250, 110
+    model.Title = MENU_TITLE
+    model.Width, model.Height = 320, 210
     order = [0]
 
     def add (kind, name, x, y, width, height, **properties):
@@ -228,38 +275,125 @@ class Analysis:
         setattr (control, key, value)
       model.insertByName (name, control)
 
-    add ('FixedText', 'input_label', 6, 9, 60, 10, Label = 'Input range:')
-    add ('Edit', 'input', 70, 6, 120, 14, Text = answers['input'])
-    add ('Button', 'input_pick', 194, 5, 50, 16, Label = 'Select...')
-    add ('FixedText', 'output_label', 6, 29, 60, 10, Label = 'Results to:')
-    add ('Edit', 'output', 70, 26, 120, 14, Text = answers['output'])
-    add ('Button', 'output_pick', 194, 25, 50, 16, Label = 'Select...')
-    add ('FixedText', 'by_label', 6, 51, 60, 10, Label = 'Grouped by:')
+    add ('FixedText', 'category_label', 6, 8, 60, 10, Label = 'Category:')
+    add ('ListBox', 'category', 6, 19, 150, 12, Dropdown = True,
+         StringItemList = tuple (octave_stats.CATEGORIES))
+    add ('FixedText', 'analysis_label', 6, 39, 60, 10, Label = 'Analysis:')
+    add ('ListBox', 'analysis', 6, 50, 150, 72)
+    add ('FixedText', 'summary', 6, 126, 150, 30, MultiLine = True)
+    add ('FixedText', 'input_label', 166, 8, 60, 10, Label = 'Input range:')
+    add ('Edit', 'input', 166, 19, 90, 14, Text = answers['input'])
+    add ('Button', 'input_pick', 260, 18, 54, 16, Label = 'Select...')
+    add ('FixedText', 'output_label', 166, 39, 60, 10, Label = 'Results to:')
+    add ('Edit', 'output', 166, 50, 90, 14, Text = answers['output'])
+    add ('Button', 'output_pick', 260, 49, 54, 16, Label = 'Select...')
+    add ('FixedText', 'by_label', 166, 72, 60, 10, Label = 'Grouped by:')
     # One group of radio buttons, since their tab indices follow each other
     for (name, x, y, label), choice in zip (RADIOS, octave_stats.BY):
       add ('RadioButton', name, x, y, 75, 12, Label = label,
            State = int (answers['by'] == choice))
-    add ('Button', 'ok', 140, 88, 50, 16, Label = 'OK', DefaultButton = True,
+    for slot in range (OPTION_SLOTS):
+      add ('FixedText', 'option%d_label' % slot, 166, 120 + 18 * slot, 70, 10)
+      add ('ListBox', 'option%d' % slot, 238, 118 + 18 * slot, 76, 12,
+           Dropdown = True)
+    add ('Button', 'ok', 206, 184, 54, 16, Label = 'OK', DefaultButton = True,
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType', 'OK'))
-    add ('Button', 'cancel', 194, 88, 50, 16, Label = 'Cancel',
+    add ('Button', 'cancel', 260, 184, 54, 16, Label = 'Cancel',
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType',
                                     'CANCEL'))
 
     dialog = self.create ('com.sun.star.awt.UnoControlDialog')
     dialog.setModel (model)
     dialog.createPeer (self.create ('com.sun.star.awt.Toolkit'), None)
-    state = {'action': 'cancel'}
+    state = {'action': 'cancel', 'command': answers['command'],
+             'commands': (), 'options': dict (answers['options'])}
+
+    def part (name):
+      return dialog.getControl (name)
+
+    def show_options (command):
+      """The option rows the chosen analysis declares, and no others."""
+      options = octave_stats.ANALYSES[command]['options'] if command else ()
+      for slot in range (OPTION_SLOTS):
+        option = options[slot] if slot < len (options) else None
+        label, box = part ('option%d_label' % slot), part ('option%d' % slot)
+        label.setVisible (option is not None)
+        box.setVisible (option is not None)
+        if (option is None):
+          continue
+        label.getModel ().Label = option['label']
+        box.getModel ().StringItemList = tuple (text for unused, text
+                                                in option['choices'])
+        offered = [choice for choice, unused in option['choices']]
+        value = state['options'].get (option['name'], option['default'])
+        box.getModel ().SelectedItems = (
+          offered.index (value) if value in offered else 0,)
+
+    def show (command):
+      """Everything that follows from the chosen analysis."""
+      state['command'] = command
+      analysis = octave_stats.ANALYSES[command] if command else None
+      part ('summary').getModel ().Label = (
+        analysis['summary'] if analysis else 'No analyses here yet.')
+      held = None
+      for name, choice in zip (RADIO_NAMES, octave_stats.BY):
+        offered = bool (analysis) and choice in analysis['layouts']
+        part (name).getModel ().Enabled = offered
+        if (offered and part (name).getModel ().State):
+          held = choice
+      if (analysis and held is None):
+        for name, choice in zip (RADIO_NAMES, octave_stats.BY):
+          part (name).getModel ().State = int (choice == analysis['layouts'][0])
+      show_options (command)
+
+    def show_category (category, command = None):
+      """The analyses of CATEGORY, on COMMAND where it is one of them."""
+      commands = octave_stats.analyses_of (category)
+      state['commands'] = commands
+      part ('analysis').getModel ().StringItemList = tuple (
+        octave_stats.ANALYSES[each]['title'] for each in commands)
+      if (commands):
+        if (command not in commands):
+          command = commands[0]
+        part ('analysis').getModel ().SelectedItems = (
+          commands.index (command),)
+      show (command if commands else None)
+
+    def category_chosen ():
+      show_category (
+        octave_stats.CATEGORIES[part ('category').getSelectedItemPos ()])
+
+    def analysis_chosen ():
+      position = part ('analysis').getSelectedItemPos ()
+      if (0 <= position < len (state['commands'])):
+        show (state['commands'][position])
+
+    opening = answers['command'] or octave_stats.first_analysis ()
+    category = (octave_stats.ANALYSES[opening]['category'] if opening
+                else octave_stats.CATEGORIES[0])
+    part ('category').getModel ().SelectedItems = (
+      octave_stats.CATEGORIES.index (category),)
+    show_category (category, opening)
+    part ('category').addItemListener (_Chosen (category_chosen))
+    part ('analysis').addItemListener (_Chosen (analysis_chosen))
     for field in ('input', 'output'):
-      dialog.getControl (field + '_pick').addActionListener (
-        _Select (dialog, state, field))
+      part (field + '_pick').addActionListener (_Select (dialog, state, field))
     ended = dialog.execute ()
     by = 'columns'
     for name, choice in zip (RADIO_NAMES, octave_stats.BY):
-      if (dialog.getControl (name).getModel ().State):
+      if (part (name).getModel ().State):
         by = choice
-    answers = {'input': dialog.getControl ('input').getModel ().Text.strip (),
-               'output': dialog.getControl ('output').getModel ().Text.strip (),
-               'by': by}
+    command, values = state['command'], dict (state['options'])
+    for slot, option in enumerate (
+        octave_stats.ANALYSES[command]['options'][:OPTION_SLOTS]
+        if command else ()):
+      position = part ('option%d' % slot).getSelectedItemPos ()
+      if (0 <= position < len (option['choices'])):
+        values[option['name']] = option['choices'][position][0]
+    answers = {'command': command,
+               'input': part ('input').getModel ().Text.strip (),
+               'output': part ('output').getModel ().Text.strip (),
+               'by': by, 'options': values}
     dialog.dispose ()
     if (state['action'] != 'cancel'):
       return state['action'], answers
@@ -308,21 +442,23 @@ class Analysis:
 
   def launch (self, answers, interactive):
     """Check the answers, then run the analysis on a worker thread."""
+    self.command = answers['command']
+    layouts = octave_stats.ANALYSES[self.command]['layouts']
+    by = answers['by'] if answers['by'] in layouts else layouts[0]
     try:
       source = self.resolve (answers['input'], 'input range')
       corner = self.resolve (answers['output'], 'results range')
       where = source.getRangeAddress ()
       errors = source.queryFormulaCells (RESULT_ERROR).getRangeAddresses ()
       if (errors):
-        allowed = octave_stats.ALLOWED.get (answers['by'],
-                                            octave_stats.ALLOWED['columns'])
+        allowed = octave_stats.ALLOWED.get (by, octave_stats.ALLOWED['columns'])
         raise ValueError ('%s holds an error; %s'
                           % (octave_core.cell_name (errors[0].StartColumn,
                                                     errors[0].StartRow),
                              allowed))
-      args = octave_stats.analysis_args (source.getDataArray (),
-                                         answers['by'], where.StartColumn,
-                                         where.StartRow)
+      args = (octave_stats.analysis_args (source.getDataArray (), by,
+                                          where.StartColumn, where.StartRow)
+              + octave_stats.option_args (self.command, answers['options']))
     except ValueError as err:
       self.refuse (str (err), answers, interactive)
       return
@@ -432,7 +568,8 @@ class StatisticsMenu (unohelper.Base, XInitialization, XDispatchProvider,
 
   # XDispatchProvider.
   def queryDispatch (self, url, target, flags):
-    if (url.Protocol == PROTOCOL and url.Path in octave_stats.ANALYSES):
+    if (url.Protocol == PROTOCOL
+        and (url.Path == 'Menu' or url.Path in octave_stats.ANALYSES)):
       return self
     return None
 

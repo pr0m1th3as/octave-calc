@@ -44,7 +44,8 @@
 ## @code{@var{C} = octave_calc_kruskalwallis (@var{DATA}, @var{BY},
 ## @var{NAMES})} names the groups in columns or rows after @var{NAMES}, a
 ## vector with one name per group, as text, a number, or empty to keep the
-## name the group's place gives it.
+## name the group's place gives it.  An empty @var{NAMES} names nothing, and
+## is the only one @qcode{'labels'} accepts.
 ##
 ## @var{C} is a cell array of scalars, text and empty values, six columns wide,
 ## laid out as the cells written into the sheet: the title; each group with its
@@ -68,16 +69,17 @@ function C = octave_calc_kruskalwallis (DATA, BY, NAMES)
                    " 'rows' or 'labels'."));
   endif
 
+  if (nargin < 3)
+    NAMES = [];
+  endif
   if (strcmp (BY, 'labels'))
-    if (nargin == 3)
+    if (! isempty (NAMES))
       error (strcat ("octave_calc_kruskalwallis: NAMES applies only to", ...
                      " groups in columns or rows."));
     endif
     [x, group, labels] = labelled (DATA);
-  elseif (nargin == 3)
-    [x, group, labels] = samples (DATA, BY, NAMES);
   else
-    [x, group, labels] = samples (DATA, BY, []);
+    [x, group, labels] = samples (DATA, BY, NAMES);
   endif
   k = numel (labels);
   if (k < 2)
@@ -259,6 +261,12 @@ endfunction
 %! R = octave_calc_kruskalwallis ([1, 2, 3; 4, 5, 6; 7, 8, 9], 'rows', ...
 %!                                {'A'; 'B'; ''});
 %! assert_equal (R(4:6,1), {'A'; 'B'; 'Row 3'});
+%!test
+%! R = octave_calc_kruskalwallis ([1, 4, 7; 2, 5, 8; 3, 6, 9], 'columns', []);
+%! assert_equal (R(4,1), {'Column 1'});
+%!test
+%! R = octave_calc_kruskalwallis ([1, 1; NaN, 2; 3, 2; 4, 1], 'labels', []);
+%! assert_equal (R(4:5,1:2), {'1', 2; '2', 1});
 %!test
 %! R = octave_calc_kruskalwallis ([1, 4, 7, 2, 5, 8, 3, 6, 9; ...
 %!                                 10, 20, 30, 10, 20, 30, 10, 20, 30]', ...

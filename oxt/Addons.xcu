@@ -26,26 +26,18 @@
       <value>com.sun.star.sheet.SpreadsheetDocument</value>
      </prop>
      <node oor:name="MenuItems">
+      <!-- One entry, no submenu: a merged entry that opens a submenu takes no
+           icon, and the analyses are chosen in the dialog. -->
       <node oor:name="m1" oor:op="replace">
        <prop oor:name="URL" oor:type="xs:string">
         <value>org.octavecalc.statistics:Menu</value>
        </prop>
        <prop oor:name="Title" oor:type="xs:string">
-        <value xml:lang="en-US">Statistics with GNU Octave</value>
+        <value xml:lang="en-US">Statistics with GNU Octave...</value>
        </prop>
-       <node oor:name="Submenu">
-        <node oor:name="m1" oor:op="replace">
-         <prop oor:name="URL" oor:type="xs:string">
-          <value>org.octavecalc.statistics:KruskalWallis</value>
-         </prop>
-         <prop oor:name="Title" oor:type="xs:string">
-          <value xml:lang="en-US">Kruskal-Wallis Test...</value>
-         </prop>
-         <prop oor:name="Target" oor:type="xs:string">
-          <value>_self</value>
-         </prop>
-        </node>
-       </node>
+       <prop oor:name="Target" oor:type="xs:string">
+        <value>_self</value>
+       </prop>
       </node>
      </node>
     </node>
