@@ -69,14 +69,25 @@ MENU_TITLE = 'Statistics with GNU Octave'
 
 # The Grouped by choices in the dialog, in the order of octave_stats.BY: their
 # control names, places and labels.
-RADIOS = (('columns', 166, 84, 'Columns'), ('rows', 246, 84, 'Rows'),
-          ('labels_data', 166, 98, 'Labels | Data'),
-          ('data_labels', 246, 98, 'Data | Labels'))
+RADIOS = (('columns', 206, 102, 'Columns'), ('rows', 306, 102, 'Rows'),
+          ('labels_data', 206, 116, 'Labels | Data'),
+          ('data_labels', 306, 116, 'Data | Labels'))
 RADIO_NAMES = [radio[0] for radio in RADIOS]
 
 # Option rows the dialog holds ready, since a control cannot be added once it
 # is open.  An analysis may declare no more options than this.
 OPTION_SLOTS = 3
+
+# What each layout means, on hovering over its button.
+LAYOUT_HELP = {
+  'columns': 'One group per column.  A first row of text is read as the '
+             'group names.',
+  'rows': 'One group per row.  A first column of text is read as the group '
+          'names.',
+  'labels-data': 'Two columns: the group of each value, then the values.  A '
+                 'first row of text is a header and is ignored.',
+  'data-labels': 'Two columns: the values, then the group of each.  A first '
+                 'row of text is a header and is ignored.'}
 
 # One analysis at a time.  A second would fight the first for the sheet.
 _busy = threading.Lock ()
@@ -261,7 +272,7 @@ class Analysis:
     answers."""
     model = self.create ('com.sun.star.awt.UnoControlDialogModel')
     model.Title = MENU_TITLE
-    model.Width, model.Height = 320, 210
+    model.Width, model.Height = 420, 272
     order = [0]
 
     def add (kind, name, x, y, width, height, **properties):
@@ -275,30 +286,48 @@ class Analysis:
         setattr (control, key, value)
       model.insertByName (name, control)
 
-    add ('FixedText', 'category_label', 6, 8, 60, 10, Label = 'Category:')
-    add ('ListBox', 'category', 6, 19, 150, 12, Dropdown = True,
-         StringItemList = tuple (octave_stats.CATEGORIES))
-    add ('FixedText', 'analysis_label', 6, 39, 60, 10, Label = 'Analysis:')
-    add ('ListBox', 'analysis', 6, 50, 150, 72)
-    add ('FixedText', 'summary', 6, 126, 150, 30, MultiLine = True)
-    add ('FixedText', 'input_label', 166, 8, 60, 10, Label = 'Input range:')
-    add ('Edit', 'input', 166, 19, 90, 14, Text = answers['input'])
-    add ('Button', 'input_pick', 260, 18, 54, 16, Label = 'Select...')
-    add ('FixedText', 'output_label', 166, 39, 60, 10, Label = 'Results to:')
-    add ('Edit', 'output', 166, 50, 90, 14, Text = answers['output'])
-    add ('Button', 'output_pick', 260, 49, 54, 16, Label = 'Select...')
-    add ('FixedText', 'by_label', 166, 72, 60, 10, Label = 'Grouped by:')
+    add ('FixedText', 'category_label', 6, 8, 80, 10, Label = 'Category:')
+    add ('ListBox', 'category', 6, 19, 190, 12, Dropdown = True,
+         StringItemList = octave_stats.category_names ())
+    add ('FixedText', 'category_detail', 6, 35, 190, 20, MultiLine = True)
+    add ('FixedText', 'analysis_label', 6, 60, 80, 10, Label = 'Analysis:')
+    add ('ListBox', 'analysis', 6, 71, 190, 60)
+    add ('FixedText', 'detail', 6, 135, 190, 110, MultiLine = True)
+    add ('FixedText', 'input_label', 206, 8, 80, 10, Label = 'Input range:')
+    add ('Edit', 'input', 206, 19, 140, 14, Text = answers['input'],
+         HelpText = 'The range holding the data, such as Sheet1.A1:C20, or '
+                    'A1:C20 on the sheet in front.  Numbers and empty cells, '
+                    'with the group names or labels the layout calls for.')
+    add ('Button', 'input_pick', 350, 18, 64, 16, Label = 'Select...')
+    add ('FixedText', 'input_hint', 206, 35, 208, 10,
+         Label = 'The cells holding the data, with their group names if any.')
+    add ('FixedText', 'output_label', 206, 49, 80, 10, Label = 'Results to:')
+    add ('Edit', 'output', 206, 60, 140, 14, Text = answers['output'],
+         HelpText = 'One cell, the top left of the results.  The results grow '
+                    'right and down from it, and you are asked before '
+                    'anything is overwritten.')
+    add ('Button', 'output_pick', 350, 59, 64, 16, Label = 'Select...')
+    add ('FixedText', 'output_hint', 206, 76, 208, 10,
+         Label = 'The top left cell the results are written from.')
+    add ('FixedText', 'by_label', 206, 90, 80, 10, Label = 'Grouped by:')
     # One group of radio buttons, since their tab indices follow each other
     for (name, x, y, label), choice in zip (RADIOS, octave_stats.BY):
-      add ('RadioButton', name, x, y, 75, 12, Label = label,
-           State = int (answers['by'] == choice))
+      add ('RadioButton', name, x, y, 95, 12, Label = label,
+           State = int (answers['by'] == choice), HelpText = LAYOUT_HELP[choice])
+    add ('FixedText', 'by_hint', 206, 132, 208, 20, MultiLine = True,
+         Label = 'Columns or Rows: one group each, whose first cell may hold '
+                 'its name.  Labels: two columns, the values and the group of '
+                 'each value.')
+    add ('FixedText', 'options_label', 206, 156, 80, 10, Label = 'Options:')
     for slot in range (OPTION_SLOTS):
-      add ('FixedText', 'option%d_label' % slot, 166, 120 + 18 * slot, 70, 10)
-      add ('ListBox', 'option%d' % slot, 238, 118 + 18 * slot, 76, 12,
-           Dropdown = True)
-    add ('Button', 'ok', 206, 184, 54, 16, Label = 'OK', DefaultButton = True,
+      top = 168 + 26 * slot
+      add ('FixedText', 'option%d_label' % slot, 206, top + 2, 100, 10)
+      add ('ListBox', 'option%d_box' % slot, 310, top, 104, 12, Dropdown = True)
+      add ('Edit', 'option%d_text' % slot, 310, top, 104, 12)
+      add ('FixedText', 'option%d_hint' % slot, 206, top + 14, 208, 10)
+    add ('Button', 'ok', 296, 248, 54, 16, Label = 'OK', DefaultButton = True,
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType', 'OK'))
-    add ('Button', 'cancel', 260, 184, 54, 16, Label = 'Cancel',
+    add ('Button', 'cancel', 356, 248, 54, 16, Label = 'Cancel',
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType',
                                     'CANCEL'))
 
@@ -312,20 +341,33 @@ class Analysis:
       return dialog.getControl (name)
 
     def show_options (command):
-      """The option rows the chosen analysis declares, and no others."""
+      """The option rows the chosen analysis declares, and no others: a list
+      to choose from, or a field to type a number in."""
       options = octave_stats.ANALYSES[command]['options'] if command else ()
+      part ('options_label').setVisible (bool (options))
       for slot in range (OPTION_SLOTS):
         option = options[slot] if slot < len (options) else None
-        label, box = part ('option%d_label' % slot), part ('option%d' % slot)
+        label, hint = (part ('option%d_label' % slot),
+                       part ('option%d_hint' % slot))
+        box, typed = (part ('option%d_box' % slot),
+                      part ('option%d_text' % slot))
         label.setVisible (option is not None)
-        box.setVisible (option is not None)
+        hint.setVisible (option is not None)
+        box.setVisible (option is not None and option['kind'] == 'choice')
+        typed.setVisible (option is not None and option['kind'] == 'number')
         if (option is None):
           continue
         label.getModel ().Label = option['label']
+        hint.getModel ().Label = option['hint']
+        for control in (box, typed):
+          control.getModel ().HelpText = option.get ('help', option['hint'])
+        value = state['options'].get (option['name'], option['default'])
+        if (option['kind'] == 'number'):
+          typed.getModel ().Text = str (value)
+          continue
         box.getModel ().StringItemList = tuple (text for unused, text
                                                 in option['choices'])
         offered = [choice for choice, unused in option['choices']]
-        value = state['options'].get (option['name'], option['default'])
         box.getModel ().SelectedItems = (
           offered.index (value) if value in offered else 0,)
 
@@ -333,8 +375,8 @@ class Analysis:
       """Everything that follows from the chosen analysis."""
       state['command'] = command
       analysis = octave_stats.ANALYSES[command] if command else None
-      part ('summary').getModel ().Label = (
-        analysis['summary'] if analysis else 'No analyses here yet.')
+      part ('detail').getModel ().Label = (
+        analysis['detail'] if analysis else 'No analyses here yet.')
       held = None
       for name, choice in zip (RADIO_NAMES, octave_stats.BY):
         offered = bool (analysis) and choice in analysis['layouts']
@@ -348,6 +390,8 @@ class Analysis:
 
     def show_category (category, command = None):
       """The analyses of CATEGORY, on COMMAND where it is one of them."""
+      part ('category_detail').getModel ().Label = (
+        octave_stats.CATEGORIES[category])
       commands = octave_stats.analyses_of (category)
       state['commands'] = commands
       part ('analysis').getModel ().StringItemList = tuple (
@@ -361,7 +405,8 @@ class Analysis:
 
     def category_chosen ():
       show_category (
-        octave_stats.CATEGORIES[part ('category').getSelectedItemPos ()])
+        octave_stats.category_names ()[part ('category')
+                                       .getSelectedItemPos ()])
 
     def analysis_chosen ():
       position = part ('analysis').getSelectedItemPos ()
@@ -369,10 +414,10 @@ class Analysis:
         show (state['commands'][position])
 
     opening = answers['command'] or octave_stats.first_analysis ()
+    names = octave_stats.category_names ()
     category = (octave_stats.ANALYSES[opening]['category'] if opening
-                else octave_stats.CATEGORIES[0])
-    part ('category').getModel ().SelectedItems = (
-      octave_stats.CATEGORIES.index (category),)
+                else names[0])
+    part ('category').getModel ().SelectedItems = (names.index (category),)
     show_category (category, opening)
     part ('category').addItemListener (_Chosen (category_chosen))
     part ('analysis').addItemListener (_Chosen (analysis_chosen))
@@ -387,7 +432,11 @@ class Analysis:
     for slot, option in enumerate (
         octave_stats.ANALYSES[command]['options'][:OPTION_SLOTS]
         if command else ()):
-      position = part ('option%d' % slot).getSelectedItemPos ()
+      if (option['kind'] == 'number'):
+        values[option['name']] = (
+          part ('option%d_text' % slot).getModel ().Text.strip ())
+        continue
+      position = part ('option%d_box' % slot).getSelectedItemPos ()
       if (0 <= position < len (option['choices'])):
         values[option['name']] = option['choices'][position][0]
     answers = {'command': command,

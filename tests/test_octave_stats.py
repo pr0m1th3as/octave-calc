@@ -161,11 +161,18 @@ class Registry (unittest.TestCase):
   def test_every_analysis_is_complete (self):
     for command, analysis in octave_stats.ANALYSES.items ():
       self.assertEqual (sorted (analysis),
-                        ['category', 'function', 'layouts', 'options',
-                         'summary', 'title'], command)
+                        ['category', 'detail', 'function', 'layouts',
+                         'options', 'title'], command)
       self.assertIn (analysis['category'], octave_stats.CATEGORIES, command)
       self.assertTrue (set (analysis['layouts']) <= set (octave_stats.BY),
                        command)
+
+  def test_every_category_is_described (self):
+    for category, description in octave_stats.CATEGORIES.items ():
+      self.assertTrue (description.endswith ('.'), category)
+
+  def test_category_names_in_order (self):
+    self.assertEqual (octave_stats.category_names ()[0], 'Group comparisons')
 
   def test_analyses_of_category (self):
     self.assertEqual (octave_stats.analyses_of ('Group comparisons'),
@@ -177,11 +184,21 @@ class Registry (unittest.TestCase):
   def test_first_analysis (self):
     self.assertEqual (octave_stats.first_analysis (), 'KruskalWallis')
 
-  def test_option_defaults (self):
-    self.assertEqual (octave_stats.option_defaults ('KruskalWallis'), {})
+  def test_every_option_is_complete (self):
+    for command, analysis in octave_stats.ANALYSES.items ():
+      for option in analysis['options']:
+        self.assertTrue ({'name', 'kind', 'label', 'hint', 'default'}
+                         <= set (option), option)
+        self.assertIn (option['kind'], ('choice', 'number'), option['name'])
 
-  def test_option_args_without_options (self):
-    self.assertEqual (octave_stats.option_args ('KruskalWallis', {}), [])
+  def test_option_defaults (self):
+    self.assertEqual (octave_stats.option_defaults ('KruskalWallis'),
+                      {'ctype': 'holm', 'alpha': '0.05'})
+
+  def test_option_args_of_kruskalwallis (self):
+    self.assertEqual (octave_stats.option_args ('KruskalWallis', {}),
+                      [{'type': 'string', 'value': 'holm'},
+                       {'type': 'number', 'value': 0.05}])
 
 
 class DeclaredOptions (unittest.TestCase):
@@ -189,8 +206,9 @@ class DeclaredOptions (unittest.TestCase):
   analysis declares options yet."""
 
   DECLARED = {'category': 'Group comparisons', 'title': 'Test', 'function': 'f',
-              'summary': 's', 'layouts': ('columns',),
-              'options': ({'name': 'ctype', 'label': 'Adjustment:',
+              'detail': 'What it does.', 'layouts': ('columns',),
+              'options': ({'name': 'ctype', 'kind': 'choice',
+                           'label': 'Adjustment:', 'hint': 'How adjusted.',
                            'choices': (('holm', 'Holm'),
                                        ('bonferroni', 'Bonferroni')),
                            'default': 'holm'},)}
@@ -219,6 +237,34 @@ class DeclaredOptions (unittest.TestCase):
       octave_stats.option_args ('Declared', {'ctype': 'tukey'})
     self.assertEqual (str (raised.exception),
                       'tukey is not a value of "ctype".')
+
+
+class NumberOption (unittest.TestCase):
+
+  OPTION = {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
+            'hint': 'Sets the intervals.',
+            'accepts': 'a number greater than 0 and less than 1',
+            'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
+
+  def test_typed_number (self):
+    self.assertEqual (octave_stats.option_number (self.OPTION, '0.01'), 0.01)
+
+  def test_comma_for_decimal_point (self):
+    self.assertEqual (octave_stats.option_number (self.OPTION, '0,01'), 0.01)
+
+  def test_out_of_range_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.option_number (self.OPTION, '1')
+    self.assertEqual (str (raised.exception),
+                      'the significance level must be a number greater than 0 '
+                      'and less than 1.')
+
+  def test_not_a_number_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.option_number (self.OPTION, 'small')
+    self.assertEqual (str (raised.exception),
+                      'the significance level must be a number greater than 0 '
+                      'and less than 1.')
 
 
 class AnalysisArgs (unittest.TestCase):

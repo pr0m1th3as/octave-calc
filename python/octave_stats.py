@@ -45,9 +45,24 @@ ALLOWED = {'columns': 'the input range may hold group names in its first row, '
            'data-labels': 'the values may be numbers or empty cells, and the '
                           'group labels text or numbers.'}
 
-# The categories, in the order the dialog lists them.
-CATEGORIES = ('Group comparisons', 'Association tests', 'Regression models',
-              'Multivariate analyses', 'Distributions')
+# The categories, in the order the dialog lists them, each with the sentence
+# shown under the category.
+CATEGORIES = {
+  'Group comparisons':
+    'Tests whether two or more groups differ, and which of them do.',
+  'Association tests':
+    'Measures whether two variables move together, and tests independence.',
+  'Regression models':
+    'Fits a model that predicts one variable from others.',
+  'Multivariate analyses':
+    'Finds the structure in many variables at once.',
+  'Distributions':
+    'Fits a distribution to a sample, and tests whether it fits.'}
+
+
+def category_names ():
+  """The categories in the order the dialog lists them."""
+  return tuple (CATEGORIES)
 
 # Every analysis, by the command that runs it, in the order its category lists
 # them.  Adding one is this entry plus its Octave function, and nothing else:
@@ -55,19 +70,40 @@ CATEGORIES = ('Group comparisons', 'Association tests', 'Regression models',
 #   category  which list it appears under
 #   title     the dialog's title and the first cell of the results
 #   function  the Octave function in the octave folder
-#   summary   one line, shown under the list
+#   detail    what it does and when to use it, shown under the list
 #   layouts   the ways it takes its input range, from BY
-#   options   what the user chooses besides the ranges, each
-#             {'name', 'label', 'choices': ((value, label), ...), 'default'},
-#             passed to the function as strings after the range and the layout
+#   options   what the user chooses besides the ranges, passed to the function
+#             after the range, the layout and the names, in declared order.
+#             Each carries 'name', 'label', 'hint', 'default' and a 'kind':
+#             'choice' holds 'choices', ((value, label), ...), and reaches the
+#             function as text; 'number' holds 'minimum', 'maximum' and
+#             'accepts', the refusal's words, and reaches it as a number
 ANALYSES = {
   'KruskalWallis': {
     'category': 'Group comparisons',
     'title': 'Kruskal-Wallis Test',
     'function': 'octave_calc_kruskalwallis',
-    'summary': 'Ranks of three or more groups, with pairwise comparisons.',
+    'detail': 'Compares three or more independent groups by rank, without '
+              'assuming the values are normally distributed.\n\n'
+              'Use it when the groups are independent, the values are at '
+              'least ordinal, and the data are skewed, heavy tailed, or too '
+              'few to judge. It answers whether any group differs; the '
+              'pairwise comparisons say which.\n\n'
+              'For two groups use the Mann-Whitney U test. For normally '
+              'distributed values, one-way ANOVA is more powerful.',
     'layouts': BY,
-    'options': ()}}
+    'options': (
+      {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
+       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
+                   ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
+                   ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
+                   ('lsd', 'None')),
+       'default': 'holm'},
+      {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
+       'hint': 'Sets the confidence intervals. 0.05 by default.',
+       'accepts': 'a number greater than 0 and less than 1',
+       'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})}}
 
 
 def first_analysis ():
@@ -92,13 +128,29 @@ def option_defaults (command):
                for option in ANALYSES[command]['options'])
 
 
+def option_number (option, value):
+  """VALUE as the number OPTION takes, from the dialog's text or a number.
+  Raises ValueError saying what the option accepts."""
+  what = option['label'].rstrip (':').lower ()
+  try:
+    number = float (str (value).strip ().replace (',', '.'))
+  except ValueError:
+    raise ValueError ('the %s must be %s.' % (what, option['accepts']))
+  if (not (option['minimum'] < number < option['maximum'])):
+    raise ValueError ('the %s must be %s.' % (what, option['accepts']))
+  return number
+
+
 def option_args (command, values):
   """The octave_call arguments for the options of COMMAND, in declared order,
   from VALUES as the dialog holds them.  An option the user has not set takes
-  its default.  Raises ValueError on a value the option does not offer."""
+  its default.  Raises ValueError on a value the option does not take."""
   args = []
   for option in ANALYSES[command]['options']:
     value = values.get (option['name'], option['default'])
+    if (option['kind'] == 'number'):
+      args.append ({'type': 'number', 'value': option_number (option, value)})
+      continue
     if (value not in [choice for choice, unused in option['choices']]):
       raise ValueError ('%s is not a value of "%s".' % (value, option['name']))
     args.append ({'type': 'string', 'value': value})

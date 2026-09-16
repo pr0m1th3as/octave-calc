@@ -18,6 +18,8 @@
 ## -*- texinfo -*-
 ## @deftypefn  {octave-calc} {@var{C} =} octave_calc_kruskalwallis (@var{DATA}, @var{BY})
 ## @deftypefnx {octave-calc} {@var{C} =} octave_calc_kruskalwallis (@var{DATA}, @var{BY}, @var{NAMES})
+## @deftypefnx {octave-calc} {@var{C} =} octave_calc_kruskalwallis (@var{DATA}, @var{BY}, @var{NAMES}, @var{CTYPE})
+## @deftypefnx {octave-calc} {@var{C} =} octave_calc_kruskalwallis (@var{DATA}, @var{BY}, @var{NAMES}, @var{CTYPE}, @var{ALPHA})
 ##
 ## Kruskal-Wallis Test for Data > Statistics with GNU Octave.
 ##
@@ -47,6 +49,14 @@
 ## name the group's place gives it.  An empty @var{NAMES} names nothing, and
 ## is the only one @qcode{'labels'} accepts.
 ##
+## @var{CTYPE} is how @code{multcompare} adjusts the p-values of the pairwise
+## comparisons, one of @qcode{'bonferroni'}, @qcode{'scheffe'},
+## @qcode{'mvt'}, @qcode{'holm'} (the default), @qcode{'hochberg'},
+## @qcode{'fdr'} or @qcode{'lsd'}, and @var{ALPHA} is the significance level,
+## greater than 0 and less than 1, 0.05 by default, which also sets the
+## confidence intervals of the comparisons.  Both are named in the heading of
+## the comparisons.
+##
 ## @var{C} is a cell array of scalars, text and empty values, six columns wide,
 ## laid out as the cells written into the sheet: the title; each group with its
 ## count, median and mean rank; the table returned by @code{kruskalwallis}; and
@@ -58,11 +68,27 @@
 ## @seealso{kruskalwallis, multcompare}
 ## @end deftypefn
 
-function C = octave_calc_kruskalwallis (DATA, BY, NAMES)
+function C = octave_calc_kruskalwallis (DATA, BY, NAMES, CTYPE, ALPHA)
 
   ## Input validation
-  if (nargin < 2 || nargin > 3)
+  if (nargin < 2 || nargin > 5)
     error ("octave_calc_kruskalwallis: invalid number of input arguments.");
+  endif
+  if (nargin < 4)
+    CTYPE = 'holm';
+  endif
+  if (nargin < 5)
+    ALPHA = 0.05;
+  endif
+  ctypes = {'bonferroni', 'scheffe', 'mvt', 'holm', 'hochberg', 'fdr', 'lsd'};
+  if (! (ischar (CTYPE) && any (strcmp (CTYPE, ctypes))))
+    error (strcat ("octave_calc_kruskalwallis: CTYPE must be 'bonferroni',", ...
+                   " 'scheffe', 'mvt', 'holm', 'hochberg', 'fdr' or 'lsd'."));
+  endif
+  if (! (isnumeric (ALPHA) && isreal (ALPHA) && isscalar (ALPHA)
+         && ALPHA > 0 && ALPHA < 1))
+    error (strcat ("octave_calc_kruskalwallis: ALPHA must be a number", ...
+                   " greater than 0 and less than 1."));
   endif
   if (! (ischar (BY) && any (strcmp (BY, {'columns', 'rows', 'labels'}))))
     error (strcat ("octave_calc_kruskalwallis: BY must be 'columns',", ...
@@ -89,7 +115,7 @@ function C = octave_calc_kruskalwallis (DATA, BY, NAMES)
 
   ## The test, and the pairwise comparisons of its mean ranks
   [~, tbl, stats] = kruskalwallis (x, group, 'off');
-  c = multcompare (stats, 'ctype', 'holm', 'display', 'off');
+  c = multcompare (stats, 'ctype', CTYPE, 'alpha', ALPHA, 'display', 'off');
   medians = accumarray (group, x, [], @median);
 
   ## The cells, six columns wide
@@ -98,7 +124,8 @@ function C = octave_calc_kruskalwallis (DATA, BY, NAMES)
   pairs = [labels(c(:,1)), labels(c(:,2)), num2cell(c(:,3:6))];
   C = [pad('Kruskal-Wallis Test'); pad(); ...
        pad('Groups', 'Count', 'Median', 'Mean rank'); groups; pad(); ...
-       tbl; pad(); pad('Multiple comparisons (Holm)'); ...
+       tbl; pad(); ...
+       pad(sprintf ("Multiple comparisons (%s, alpha %g)", CTYPE, ALPHA)); ...
        pad('Group', 'Group', 'Lower bound', 'Mean rank difference', ...
            'Upper bound', 'Adjusted p-value'); pairs];
 
@@ -237,7 +264,19 @@ endfunction
 %!test
 %! assert_equal (C(8:11,:), tbl);
 %!test
-%! assert_equal (C(13,1), {'Multiple comparisons (Holm)'});
+%! assert_equal (C(13,1), {'Multiple comparisons (holm, alpha 0.05)'});
+%!test
+%! R = octave_calc_kruskalwallis ([1, 4, 7; 2, 5, 8; 3, 6, 9], 'columns', ...
+%!                                [], 'bonferroni', 0.01);
+%! assert_equal (R(13,1), {'Multiple comparisons (bonferroni, alpha 0.01)'});
+%!test
+%! R = octave_calc_kruskalwallis ([1, 4, 7; 2, 5, 8; 3, 6, 9], 'columns', ...
+%!                                [], 'lsd');
+%! assert_equal (isequal (R(15:17,6), C(15:17,6)), false);
+%!test
+%! R = octave_calc_kruskalwallis ([1, 4, 7; 2, 5, 8; 3, 6, 9], 'columns', ...
+%!                                [], 'holm', 0.5);
+%! assert_equal (isequal (R(15:17,3), C(15:17,3)), false);
 %!test
 %! assert_equal (C(14,:), {'Group', 'Group', 'Lower bound', ...
 %!                         'Mean rank difference', 'Upper bound', ...
@@ -297,6 +336,10 @@ endfunction
 %! octave_calc_kruskalwallis ([1, 2], 'diagonal')
 %!error<octave_calc_kruskalwallis: NAMES applies only to groups in columns or rows.> ...
 %! octave_calc_kruskalwallis ([1, 1; 2, 2], 'labels', {'A', 'B'})
+%!error<octave_calc_kruskalwallis: CTYPE must be 'bonferroni', 'scheffe', 'mvt', 'holm', 'hochberg', 'fdr' or 'lsd'.> ...
+%! octave_calc_kruskalwallis ([1, 2; 3, 4], 'columns', [], 'tukey')
+%!error<octave_calc_kruskalwallis: ALPHA must be a number greater than 0 and less than 1.> ...
+%! octave_calc_kruskalwallis ([1, 2; 3, 4], 'columns', [], 'holm', 1)
 %!error<octave_calc_kruskalwallis: DATA must be a real numeric matrix.> ...
 %! octave_calc_kruskalwallis ('ab', 'columns')
 %!error<octave_calc_kruskalwallis: NAMES must be text or numbers.> ...
