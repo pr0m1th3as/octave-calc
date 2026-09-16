@@ -40,11 +40,15 @@
 ## or @qcode{'unequal'}, which runs Welch's ANOVA instead, returns its own
 ## table, and titles the results @qcode{"One-way Welch's ANOVA"}.
 ##
-## @var{C} is a cell array of scalars, text and empty values, six columns wide,
-## laid out as the cells written into the sheet: the title; each group with its
-## count, mean and standard deviation; the table returned by @code{anova1}; and
-## each pair of groups with the lower bound, estimate and upper bound of the
-## difference of their means and its adjusted p-value.
+## @var{C} is a cell array of scalars, text and empty values, eight columns
+## wide, laid out as the cells written into the sheet: the title; each group
+## with its count, mean, standard deviation and standard error; the table
+## returned by @code{anova1}; and each pair of groups with the lower bound,
+## estimate and upper bound of the difference of their means, the test
+## statistic, its degrees of freedom, and its adjusted p-value.
+##
+## The standard error is each group's own, while the default ANOVA pools the
+## variances; the pooled figure is the error mean square of the table.
 ##
 ## The @code{statistics} package must be loaded.
 ##
@@ -93,19 +97,22 @@ function C = octave_calc_anova1 (DATA, BY, NAMES, CTYPE, ALPHA, VARTYPE)
   else
     title = 'One-way ANOVA';
   endif
+  deviations = sqrt (stats.vars(:));
   groups = [labels, num2cell(stats.n(:)), num2cell(stats.means(:)), ...
-            num2cell(sqrt (stats.vars(:))), cell(k, 2)];
+            num2cell(deviations), ...
+            num2cell(deviations ./ sqrt (stats.n(:))), cell(k, 3)];
   C = [pad(title); pad(); ...
-       pad('Groups', 'Count', 'Mean', 'Standard deviation'); groups; pad(); ...
-       tbl; pad(); pad(heading); ...
+       pad('Groups', 'Count', 'Mean', 'Standard deviation', ...
+           'Standard error'); groups; pad(); ...
+       [tbl, cell(rows (tbl), 2)]; pad(); pad(heading); ...
        pad('Group', 'Group', 'Lower bound', 'Mean difference', ...
-           'Upper bound', 'Adjusted p-value'); pairs];
+           'Upper bound', 'Statistic', 'DoF', 'Adjusted p-value'); pairs];
 
 endfunction
 
-## A row of six cells, starting with the values given
+## A row of eight cells, starting with the values given
 function R = pad (varargin)
-  R = cell (1, 6);
+  R = cell (1, 8);
   R(1:numel (varargin)) = varargin;
 endfunction
 
@@ -115,26 +122,31 @@ endfunction
 %! c = multcompare (stats, 'ctype', 'holm', 'alpha', 0.05, 'display', 'off');
 %! C = octave_calc_anova1 (x, 'columns');
 %!test
-%! assert_equal (size (C), [17, 6]);
+%! assert_equal (size (C), [17, 8]);
 %!test
-%! assert_equal (C(1,:), {'One-way ANOVA', [], [], [], [], []});
+%! assert_equal (C(1,:), {'One-way ANOVA', [], [], [], [], [], [], []});
 %!test
 %! assert_equal (C(3,:), {'Groups', 'Count', 'Mean', 'Standard deviation', ...
-%!                        [], []});
+%!                        'Standard error', [], [], []});
 %!test
 %! assert_equal (C(4,1:3), {'Column 1', 3, 2});
 %!test
 %! assert_equal (C(6,1:3), {'Column 3', 3, 8});
 %!test
-%! assert_equal (C(8:11,:), tbl);
+%! assert_equal (C(4,4:5), {std([1; 2; 3]), std([1; 2; 3]) / sqrt(3)});
+%!test
+%! assert_equal (C(8:11,:), [tbl, cell(4, 2)]);
 %!test
 %! assert_equal (C(13,1), {'Multiple comparisons (holm, alpha 0.05)'});
 %!test
 %! assert_equal (C(14,:), {'Group', 'Group', 'Lower bound', ...
 %!                         'Mean difference', 'Upper bound', ...
-%!                         'Adjusted p-value'});
+%!                         'Statistic', 'DoF', 'Adjusted p-value'});
 %!test
-%! assert_equal (C(15:17,3:6), num2cell (c(:,3:6)));
+%! assert_equal (C(15:17,3:8), num2cell (c(:,[3, 4, 5, 7, 8, 6])));
+%!test
+%! ## Equal variances share the error degrees of freedom of the table
+%! assert_equal (cell2mat (C(15:17,7)), [6; 6; 6]);
 %!test
 %! R = octave_calc_anova1 ([1, 2, 3; 4, 5, 6; 7, 8, 9], 'rows');
 %! assert_equal (R(4,1:2), {'Row 1', 3});
@@ -154,7 +166,7 @@ endfunction
 %! ## Welch's ANOVA returns a table of its own, two rows deep
 %! R = octave_calc_anova1 ([1, 4, 7; 2, 5, 9; 3, 6, 8], 'columns', [], ...
 %!                          'holm', 0.05, 'unequal');
-%! assert_equal (size (R), [15, 6]);
+%! assert_equal (size (R), [15, 8]);
 %!test
 %! R = octave_calc_anova1 ([1, 4, 7; 2, 5, 9; 3, 6, 8], 'columns', [], ...
 %!                          'holm', 0.05, 'unequal');

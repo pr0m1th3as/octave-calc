@@ -57,11 +57,14 @@
 ## confidence intervals of the comparisons.  Both are named in the heading of
 ## the comparisons.
 ##
-## @var{C} is a cell array of scalars, text and empty values, six columns wide,
-## laid out as the cells written into the sheet: the title; each group with its
-## count, median and mean rank; the table returned by @code{kruskalwallis}; and
-## each pair of groups with the lower bound, estimate and upper bound of their
-## difference in mean ranks and its adjusted p-value.
+## @var{C} is a cell array of scalars, text and empty values, eight columns
+## wide, laid out as the cells written into the sheet: the title; each group
+## with its count, median, mean rank and interquartile range; the table
+## returned by @code{kruskalwallis}; and each pair of groups with the lower
+## bound, estimate and upper bound of their difference in mean ranks, the test
+## statistic, its degrees of freedom, and its adjusted p-value.  The degrees
+## of freedom are @code{Inf}, the statistic of a rank comparison being a z,
+## and the sheet holds them as text, which reads back as a number.
 ##
 ## The @code{statistics} package must be loaded.
 ##
@@ -98,21 +101,23 @@ function C = octave_calc_kruskalwallis (DATA, BY, NAMES, CTYPE, ALPHA)
     error ("octave_calc_kruskalwallis: %s", errmsg);
   endif
   medians = accumarray (group, x, [], @median);
+  spreads = accumarray (group, x, [], @iqr);
 
-  ## The cells, six columns wide
+  ## The cells, eight columns wide
   groups = [labels, num2cell(stats.n(:)), num2cell(medians), ...
-            num2cell(stats.meanranks(:)), cell(k, 2)];
+            num2cell(stats.meanranks(:)), num2cell(spreads), cell(k, 3)];
   C = [pad('Kruskal-Wallis Test'); pad(); ...
-       pad('Groups', 'Count', 'Median', 'Mean rank'); groups; pad(); ...
-       tbl; pad(); pad(heading); ...
+       pad('Groups', 'Count', 'Median', 'Mean rank', ...
+           'Interquartile range'); groups; pad(); ...
+       [tbl, cell(rows (tbl), 2)]; pad(); pad(heading); ...
        pad('Group', 'Group', 'Lower bound', 'Mean rank difference', ...
-           'Upper bound', 'Adjusted p-value'); pairs];
+           'Upper bound', 'Statistic', 'DoF', 'Adjusted p-value'); pairs];
 
 endfunction
 
-## A row of six cells, starting with the values given
+## A row of eight cells, starting with the values given
 function R = pad (varargin)
-  R = cell (1, 6);
+  R = cell (1, 8);
   R(1:numel (varargin)) = varargin;
 endfunction
 
@@ -123,17 +128,18 @@ endfunction
 %! c = multcompare (stats, 'ctype', 'holm', 'display', 'off');
 %! C = octave_calc_kruskalwallis ([1, 4, 7; 2, 5, 8; 3, 6, 9], 'columns');
 %!test
-%! assert_equal (size (C), [17, 6]);
+%! assert_equal (size (C), [17, 8]);
 %!test
-%! assert_equal (C(1,:), {'Kruskal-Wallis Test', [], [], [], [], []});
+%! assert_equal (C(1,:), {'Kruskal-Wallis Test', [], [], [], [], [], [], []});
 %!test
-%! assert_equal (C(3,:), {'Groups', 'Count', 'Median', 'Mean rank', [], []});
+%! assert_equal (C(3,:), {'Groups', 'Count', 'Median', 'Mean rank', ...
+%!                        'Interquartile range', [], [], []});
 %!test
-%! assert_equal (C(4,:), {'Column 1', 3, 2, 2, [], []});
+%! assert_equal (C(4,:), {'Column 1', 3, 2, 2, iqr([1; 2; 3]), [], [], []});
 %!test
-%! assert_equal (C(6,:), {'Column 3', 3, 8, 8, [], []});
+%! assert_equal (C(6,:), {'Column 3', 3, 8, 8, iqr([7; 8; 9]), [], [], []});
 %!test
-%! assert_equal (C(8:11,:), tbl);
+%! assert_equal (C(8:11,:), [tbl, cell(4, 2)]);
 %!test
 %! assert_equal (C(13,1), {'Multiple comparisons (holm, alpha 0.05)'});
 %!test
@@ -143,7 +149,7 @@ endfunction
 %!test
 %! R = octave_calc_kruskalwallis ([1, 4, 7; 2, 5, 8; 3, 6, 9], 'columns', ...
 %!                                [], 'lsd');
-%! assert_equal (isequal (R(15:17,6), C(15:17,6)), false);
+%! assert_equal (isequal (R(15:17,8), C(15:17,8)), false);
 %!test
 %! R = octave_calc_kruskalwallis ([1, 4, 7; 2, 5, 8; 3, 6, 9], 'columns', ...
 %!                                [], 'holm', 0.5);
@@ -151,15 +157,18 @@ endfunction
 %!test
 %! assert_equal (C(14,:), {'Group', 'Group', 'Lower bound', ...
 %!                         'Mean rank difference', 'Upper bound', ...
-%!                         'Adjusted p-value'});
+%!                         'Statistic', 'DoF', 'Adjusted p-value'});
 %!test
 %! assert_equal (C(15:17,1:2), {'Column 1', 'Column 2'; 'Column 1', ...
 %!                              'Column 3'; 'Column 2', 'Column 3'});
 %!test
-%! assert_equal (C(15:17,3:6), num2cell (c(:,3:6)));
+%! assert_equal (C(15:17,3:8), num2cell (c(:,[3, 4, 5, 7, 8, 6])));
+%!test
+%! ## A rank comparison reports Inf, its statistic being a z
+%! assert_equal (cell2mat (C(15:17,7)), [Inf; Inf; Inf]);
 %!test
 %! R = octave_calc_kruskalwallis ([1, 2, 3; 4, 5, 6; 7, 8, 9], 'rows');
-%! assert_equal (R(4,:), {'Row 1', 3, 2, 2, [], []});
+%! assert_equal (R(4,:), {'Row 1', 3, 2, 2, iqr([1; 2; 3]), [], [], []});
 %!test
 %! R = octave_calc_kruskalwallis ([1, 4; 2, NaN; 3, 6], 'columns');
 %! assert_equal (R(5,1:4), {'Column 2', 2, 5, 4.5});
@@ -181,7 +190,7 @@ endfunction
 %! R = octave_calc_kruskalwallis ([1, 4, 7, 2, 5, 8, 3, 6, 9; ...
 %!                                 10, 20, 30, 10, 20, 30, 10, 20, 30]', ...
 %!                                'labels');
-%! assert_equal (R(8:11,:), tbl);
+%! assert_equal (R(8:11,:), [tbl, cell(4, 2)]);
 %!test
 %! R = octave_calc_kruskalwallis ([4, 2.5; 1, 1; 7, 30; 2, 1], 'labels');
 %! assert_equal (R(4:6,1:2), {'1', 2; '2.5', 1; '30', 1});

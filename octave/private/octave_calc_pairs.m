@@ -29,10 +29,13 @@
 ## also sets the confidence intervals.
 ##
 ## @var{heading} names both above the comparisons, and @var{pairs} is a cell
-## array of one row per pair of groups, six columns wide: the two groups, then
-## the lower bound, the estimate and the upper bound of their difference, and
-## its adjusted p-value.  The test statistic and the degrees of freedom that
-## @code{multcompare} also returns are left out.
+## array of one row per pair of groups, eight columns wide: the two groups,
+## then the lower bound, the estimate and the upper bound of their difference,
+## the test statistic, its degrees of freedom, and the adjusted p-value, which
+## comes last as it does in an ANOVA table.  Degrees of freedom of @code{Inf}
+## are kept, since they say the statistic is a z, and the sheet holds them as
+## the text @qcode{'Inf'}, which reads back as a number where an empty cell
+## would read back as @code{NaN}.
 ##
 ## @var{errmsg} is the body of an error message when @var{CTYPE} or
 ## @var{ALPHA} is not one of those, and the caller raises it under its own
@@ -44,7 +47,7 @@ function [heading, pairs, errmsg] = octave_calc_pairs (STATS, LABELS, ...
                                                        CTYPE, ALPHA)
 
   heading = "";
-  pairs = cell (0, 6);
+  pairs = cell (0, 8);
   errmsg = "";
 
   if (nargin != 4)
@@ -65,6 +68,6 @@ function [heading, pairs, errmsg] = octave_calc_pairs (STATS, LABELS, ...
 
   c = multcompare (STATS, 'ctype', CTYPE, 'alpha', ALPHA, 'display', 'off');
   heading = sprintf ("Multiple comparisons (%s, alpha %g)", CTYPE, ALPHA);
-  pairs = [LABELS(c(:,1)), LABELS(c(:,2)), num2cell(c(:,3:6))];
+  pairs = [LABELS(c(:,1)), LABELS(c(:,2)), num2cell(c(:,[3, 4, 5, 7, 8, 6]))];
 
 endfunction
