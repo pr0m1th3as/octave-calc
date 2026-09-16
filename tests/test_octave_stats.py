@@ -176,7 +176,11 @@ class Registry (unittest.TestCase):
 
   def test_analyses_of_category (self):
     self.assertEqual (octave_stats.analyses_of ('Group comparisons'),
-                      ('KruskalWallis',))
+                      ('KruskalWallis', 'Anova1'))
+
+  def test_options_fit_the_dialog (self):
+    for command, analysis in octave_stats.ANALYSES.items ():
+      self.assertLessEqual (len (analysis['options']), 3, command)
 
   def test_analyses_of_empty_category (self):
     self.assertEqual (octave_stats.analyses_of ('Distributions'), ())
@@ -306,7 +310,7 @@ class Overlaps (unittest.TestCase):
 
 @unittest.skipUnless (octave_core.sandbox_problem () is None,
                       'no sandbox on this machine')
-class KruskalWallisInOctave (unittest.TestCase):
+class AnalysesInOctave (unittest.TestCase):
 
   @classmethod
   def setUpClass (cls):
@@ -319,10 +323,17 @@ class KruskalWallisInOctave (unittest.TestCase):
   def tearDownClass (cls):
     cls.runner.stop ()
 
-  def run_analysis (self, rows, by):
-    args = octave_stats.analysis_args (rows, by, 0, 0)
+  def run_analysis (self, rows, by, command = 'KruskalWallis'):
+    args = (octave_stats.analysis_args (rows, by, 0, 0)
+            + octave_stats.option_args (command, {}))
     return octave_stats.results (
-      self.runner.call ('octave_calc_kruskalwallis', args))
+      self.runner.call (octave_stats.ANALYSES[command]['function'], args))
+
+  def test_anova_reaches_cells (self):
+    table = self.run_analysis (((1.0, 4.0, 7.0), (2.0, 5.0, 9.0),
+                                (3.0, 6.0, 8.0)), 'columns', 'Anova1')
+    self.assertEqual ((table[0][0], table[3][:3]),
+                      ('One-way ANOVA', ('Column 1', 3.0, 2.0)))
 
   def test_results_reach_cells (self):
     table = self.run_analysis (((1.0, 4.0, 7.0), (2.0, 5.0, 8.0),

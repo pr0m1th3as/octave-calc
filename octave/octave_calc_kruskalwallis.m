@@ -80,163 +80,34 @@ function C = octave_calc_kruskalwallis (DATA, BY, NAMES, CTYPE, ALPHA)
   if (nargin < 5)
     ALPHA = 0.05;
   endif
-  ctypes = {'bonferroni', 'scheffe', 'mvt', 'holm', 'hochberg', 'fdr', 'lsd'};
-  if (! (ischar (CTYPE) && any (strcmp (CTYPE, ctypes))))
-    error (strcat ("octave_calc_kruskalwallis: CTYPE must be 'bonferroni',", ...
-                   " 'scheffe', 'mvt', 'holm', 'hochberg', 'fdr' or 'lsd'."));
-  endif
-  if (! (isnumeric (ALPHA) && isreal (ALPHA) && isscalar (ALPHA)
-         && ALPHA > 0 && ALPHA < 1))
-    error (strcat ("octave_calc_kruskalwallis: ALPHA must be a number", ...
-                   " greater than 0 and less than 1."));
-  endif
-  if (! (ischar (BY) && any (strcmp (BY, {'columns', 'rows', 'labels'}))))
-    error (strcat ("octave_calc_kruskalwallis: BY must be 'columns',", ...
-                   " 'rows' or 'labels'."));
-  endif
 
   if (nargin < 3)
     NAMES = [];
   endif
-  if (strcmp (BY, 'labels'))
-    if (! isempty (NAMES))
-      error (strcat ("octave_calc_kruskalwallis: NAMES applies only to", ...
-                     " groups in columns or rows."));
-    endif
-    [x, group, labels] = labelled (DATA);
-  else
-    [x, group, labels] = samples (DATA, BY, NAMES);
+
+  [x, group, labels, errmsg] = octave_calc_groups (DATA, BY, NAMES);
+  if (! isempty (errmsg))
+    error ("octave_calc_kruskalwallis: %s", errmsg);
   endif
   k = numel (labels);
-  if (k < 2)
-    error (strcat ("octave_calc_kruskalwallis: the input range holds", ...
-                   " fewer than two groups."));
-  endif
 
   ## The test, and the pairwise comparisons of its mean ranks
   [~, tbl, stats] = kruskalwallis (x, group, 'off');
-  c = multcompare (stats, 'ctype', CTYPE, 'alpha', ALPHA, 'display', 'off');
+  [heading, pairs, errmsg] = octave_calc_pairs (stats, labels, CTYPE, ALPHA);
+  if (! isempty (errmsg))
+    error ("octave_calc_kruskalwallis: %s", errmsg);
+  endif
   medians = accumarray (group, x, [], @median);
 
   ## The cells, six columns wide
   groups = [labels, num2cell(stats.n(:)), num2cell(medians), ...
             num2cell(stats.meanranks(:)), cell(k, 2)];
-  pairs = [labels(c(:,1)), labels(c(:,2)), num2cell(c(:,3:6))];
   C = [pad('Kruskal-Wallis Test'); pad(); ...
        pad('Groups', 'Count', 'Median', 'Mean rank'); groups; pad(); ...
-       tbl; pad(); ...
-       pad(sprintf ("Multiple comparisons (%s, alpha %g)", CTYPE, ALPHA)); ...
+       tbl; pad(); pad(heading); ...
        pad('Group', 'Group', 'Lower bound', 'Mean rank difference', ...
            'Upper bound', 'Adjusted p-value'); pairs];
 
-endfunction
-
-## Every value in one column, beside the number of its group, from one group
-## per column or per row, named after NAMES where it names them
-function [x, group, labels] = samples (DATA, BY, NAMES)
-  if (! (isnumeric (DATA) && isreal (DATA) && ismatrix (DATA)))
-    error ("octave_calc_kruskalwallis: DATA must be a real numeric matrix.");
-  endif
-  if (strcmp (BY, 'rows'))
-    DATA = DATA.';
-    stem = 'Row';
-  else
-    stem = 'Column';
-  endif
-  k = columns (DATA);
-  labels = arrayfun (@(ii) sprintf ("%s %d", stem, ii), (1:k)', ...
-                     "UniformOutput", false);
-  if (! isempty (NAMES))
-    names = texts (NAMES, "NAMES");
-    if (numel (names) != k)
-      error (strcat ("octave_calc_kruskalwallis: NAMES must hold one", ...
-                     " name for each group."));
-    endif
-    given = ! cellfun (@isempty, names);
-    labels(given) = names(given);
-    [~, first] = unique (labels, "first");
-    if (numel (first) < k)
-      twice = labels{setdiff (1:k, first)(1)};
-      error (strcat ("octave_calc_kruskalwallis: two groups share the", ...
-                     " name '%s'."), twice);
-    endif
-  endif
-  x = [];
-  group = [];
-  for ii = 1:k
-    values = DATA(! isnan (DATA(:,ii)), ii);
-    if (isempty (values) && k > 1)
-      error (strcat ("octave_calc_kruskalwallis: the group '%s' holds", ...
-                     " no numbers."), labels{ii});
-    endif
-    x = [x; values];
-    group = [group; repmat(ii, numel (values), 1)];
-  endfor
-endfunction
-
-## Every value in one column, beside the number of its group, from values
-## beside their group labels
-function [x, group, labels] = labelled (DATA)
-  if (! (ismatrix (DATA) && columns (DATA) == 2
-         && ((isnumeric (DATA) && isreal (DATA)) || iscell (DATA))))
-    error (strcat ("octave_calc_kruskalwallis: DATA must have two", ...
-                   " columns, the values and their group labels."));
-  endif
-  if (isnumeric (DATA))
-    x = DATA(:,1);
-  else
-    number = @(v) isnumeric (v) && isreal (v) && isscalar (v);
-    if (! all (cellfun (@(v) number (v) || isempty (v), DATA(:,1))))
-      error (strcat ("octave_calc_kruskalwallis: the values in DATA must", ...
-                     " be numbers."));
-    endif
-    x = nan (rows (DATA), 1);
-    present = ! cellfun (@isempty, DATA(:,1));
-    x(present) = [DATA{present,1}];
-  endif
-  keep = ! isnan (x);
-  if (isnumeric (DATA))
-    names = DATA(keep,2);
-    missing = isnan (names);
-  else
-    names = texts (DATA(keep,2), "the group labels in DATA");
-    missing = cellfun (@isempty, names);
-  endif
-  if (any (missing))
-    error (strcat ("octave_calc_kruskalwallis: the input range holds a", ...
-                   " value with no group label."));
-  endif
-  x = x(keep);
-  if (isempty (x))
-    group = [];
-    labels = cell (0, 1);
-  else
-    [group, labels] = grp2idx (names);
-  endif
-endfunction
-
-## Names as a column of text, from a numeric vector or a cell array of text,
-## numbers and empty values; a missing name is empty text
-function names = texts (V, what)
-  if (isnumeric (V) && isreal (V))
-    V = num2cell (V);
-  endif
-  isname = @(v) (isnumeric (v) && isreal (v) && isscalar (v)) || isempty (v) ...
-                || (ischar (v) && rows (v) <= 1);
-  if (! (iscell (V) && all (cellfun (isname, V(:)))))
-    error ("octave_calc_kruskalwallis: %s must be text or numbers.", what);
-  endif
-  names = cell (numel (V), 1);
-  for ii = 1:numel (V)
-    v = V{ii};
-    if (ischar (v))
-      names{ii} = v;
-    elseif (! (isempty (v) || isnan (v)))
-      names{ii} = num2str (v);
-    else
-      names{ii} = '';
-    endif
-  endfor
 endfunction
 
 ## A row of six cells, starting with the values given

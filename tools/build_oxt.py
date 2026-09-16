@@ -55,6 +55,12 @@ CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),
            'octave_stats.py': os.path.join (HERE, 'python', 'octave_stats.py'),
            'octave/octave_calc_kruskalwallis.m': os.path.join (
              HERE, 'octave', 'octave_calc_kruskalwallis.m'),
+           'octave/octave_calc_anova1.m': os.path.join (
+             HERE, 'octave', 'octave_calc_anova1.m'),
+           'octave/private/octave_calc_groups.m': os.path.join (
+             HERE, 'octave', 'private', 'octave_calc_groups.m'),
+           'octave/private/octave_calc_pairs.m': os.path.join (
+             HERE, 'octave', 'private', 'octave_calc_pairs.m'),
            'statistics_menu.py': os.path.join (HERE, 'python',
                                                'statistics_menu.py'),
            'OctaveCalc.xcs': os.path.join (HERE, 'oxt', 'OctaveCalc.xcs'),

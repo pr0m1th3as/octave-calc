@@ -103,7 +103,39 @@ ANALYSES = {
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
        'hint': 'Sets the confidence intervals. 0.05 by default.',
        'accepts': 'a number greater than 0 and less than 1',
-       'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})}}
+       'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
+  'Anova1': {
+    'category': 'Group comparisons',
+    'title': 'One-way ANOVA',
+    'function': 'octave_calc_anova1',
+    'detail': 'Compares the means of two or more independent groups, by '
+              'weighing the spread between the groups against the spread '
+              'within them.\n\n'
+              'Use it when the groups are independent, the values are '
+              'measured on a scale, and each group is roughly normal. It '
+              'answers whether any mean differs; the pairwise comparisons '
+              'say which.\n\n'
+              'When the groups have unequal variances, choose Welch. When '
+              'the data are skewed or few, the Kruskal-Wallis Test is '
+              'safer.',
+    'layouts': BY,
+    'options': (
+      {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
+       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
+                   ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
+                   ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
+                   ('lsd', 'None')),
+       'default': 'holm'},
+      {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
+       'hint': 'Sets the confidence intervals. 0.05 by default.',
+       'accepts': 'a number greater than 0 and less than 1',
+       'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'},
+      {'name': 'vartype', 'kind': 'choice', 'label': 'Variances:',
+       'hint': 'Welch does not assume the groups share a variance.',
+       'choices': (('equal', 'equal (assumed)'),
+                   ('unequal', 'non-equal (Welch)')),
+       'default': 'equal'})}}
 
 
 def first_analysis ():
