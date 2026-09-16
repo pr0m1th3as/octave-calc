@@ -57,6 +57,10 @@ CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),
              HERE, 'octave', 'octave_calc_kruskalwallis.m'),
            'octave/octave_calc_anova1.m': os.path.join (
              HERE, 'octave', 'octave_calc_anova1.m'),
+           'octave/octave_calc_fullfact.m': os.path.join (
+             HERE, 'octave', 'octave_calc_fullfact.m'),
+           'octave/octave_calc_ff2n.m': os.path.join (
+             HERE, 'octave', 'octave_calc_ff2n.m'),
            'octave/private/octave_calc_groups.m': os.path.join (
              HERE, 'octave', 'private', 'octave_calc_groups.m'),
            'octave/private/octave_calc_pairs.m': os.path.join (

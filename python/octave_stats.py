@@ -57,7 +57,10 @@ CATEGORIES = {
   'Multivariate analyses':
     'Finds the structure in many variables at once.',
   'Distributions':
-    'Fits a distribution to a sample, and tests whether it fits.'}
+    'Fits a distribution to a sample, and tests whether it fits.',
+  'Experimental design':
+    'Plans a study before the data exist: how many observations are needed, '
+    'and which combinations to run.'}
 
 
 def category_names ():
@@ -71,16 +74,22 @@ def category_names ():
 #   title     the dialog's title and the first cell of the results
 #   function  the Octave function in the octave folder
 #   detail    what it does and when to use it, shown under the list
-#   layouts   the ways it takes its input range, from BY
+#   input     'range', the analysis reads the cells of an input range, or
+#             'none', it takes its options alone and reads no cells
+#   layouts   the ways it takes its input range, from BY, or () when it reads
+#             no cells
 #   options   what the user chooses besides the ranges, passed to the function
 #             after the range, the layout and the names, in declared order.
 #             Each carries 'name', 'label', 'hint', 'default' and a 'kind':
 #             'choice' holds 'choices', ((value, label), ...), and reaches the
 #             function as text; 'number' holds 'minimum', 'maximum' and
-#             'accepts', the refusal's words, and reaches it as a number
+#             'accepts', the refusal's words, and reaches it as a number,
+#             whole when it holds 'whole'; 'numbers' holds the same and
+#             reaches the function as a range of one row
 ANALYSES = {
   'KruskalWallis': {
     'category': 'Group comparisons',
+    'input': 'range',
     'title': 'Kruskal-Wallis Test',
     'function': 'octave_calc_kruskalwallis',
     'detail': 'Compares three or more independent groups by rank, without '
@@ -106,6 +115,7 @@ ANALYSES = {
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova1': {
     'category': 'Group comparisons',
+    'input': 'range',
     'title': 'One-way ANOVA',
     'function': 'octave_calc_anova1',
     'detail': 'Compares the means of two or more independent groups, by '
@@ -135,7 +145,41 @@ ANALYSES = {
        'hint': 'Welch does not assume the groups share a variance.',
        'choices': (('equal', 'equal (assumed)'),
                    ('unequal', 'non-equal (Welch)')),
-       'default': 'equal'})}}
+       'default': 'equal'})},
+  'FullFactorial': {
+    'category': 'Experimental design',
+    'title': 'Full factorial design',
+    'function': 'octave_calc_fullfact',
+    'input': 'none',
+    'detail': 'Writes every combination of the levels of each factor, one '
+              'run per row.\n\n'
+              'Use it to lay out a study before running it, when every '
+              'factor is to be crossed with every other. Three factors of 2, '
+              '3 and 3 levels give 18 runs.\n\n'
+              'For factors of two levels each, the two-level design is '
+              'shorter to ask for.',
+    'layouts': (),
+    'options': (
+      {'name': 'levels', 'kind': 'numbers', 'label': 'Levels per factor:',
+       'hint': 'One number per factor, such as 2 3 3.',
+       'accepts': 'one whole number per factor, each 2 or more',
+       'minimum': 1.0, 'maximum': 1000.0, 'whole': True, 'default': '2 3 3'},)},
+  'TwoLevelFactorial': {
+    'category': 'Experimental design',
+    'title': 'Two-level factorial design',
+    'function': 'octave_calc_ff2n',
+    'input': 'none',
+    'detail': 'Writes every combination of two levels, 0 and 1, of the given '
+              'number of factors, one run per row.\n\n'
+              'Use it for a screening study where each factor is set low or '
+              'high. Five factors give 32 runs, and the count doubles with '
+              'each factor added.',
+    'layouts': (),
+    'options': (
+      {'name': 'factors', 'kind': 'number', 'label': 'Factors:',
+       'hint': 'Each factor doubles the number of runs.',
+       'accepts': 'a whole number from 1 to 15',
+       'minimum': 0.0, 'maximum': 16.0, 'whole': True, 'default': '3'},)}}
 
 
 def first_analysis ():
@@ -163,14 +207,36 @@ def option_defaults (command):
 def option_number (option, value):
   """VALUE as the number OPTION takes, from the dialog's text or a number.
   Raises ValueError saying what the option accepts."""
+  return option_numbers (option, value)[0]
+
+
+def option_numbers (option, value):
+  """VALUE as the list of numbers OPTION takes, from the dialog's text, where
+  they are written one after another, or from numbers already.  Raises
+  ValueError saying what the option accepts."""
   what = option['label'].rstrip (':').lower ()
-  try:
-    number = float (str (value).strip ().replace (',', '.'))
-  except ValueError:
-    raise ValueError ('the %s must be %s.' % (what, option['accepts']))
-  if (not (option['minimum'] < number < option['maximum'])):
-    raise ValueError ('the %s must be %s.' % (what, option['accepts']))
-  return number
+  refusal = ValueError ('the %s must be %s.' % (what, option['accepts']))
+  if (option['kind'] == 'number'):
+    # One number, where a comma is the decimal point a Greek locale types
+    words = [str (value).strip ().replace (',', '.')]
+  else:
+    words = str (value).replace (',', ' ').replace (';', ' ').split ()
+  if (not words or not words[0]):
+    raise refusal
+  numbers = []
+  for word in words:
+    try:
+      number = float (word)
+    except ValueError:
+      raise refusal
+    if (not (option['minimum'] < number < option['maximum'])):
+      raise refusal
+    if (option.get ('whole') and number != int (number)):
+      raise refusal
+    numbers.append (number)
+  if (option['kind'] == 'number' and len (numbers) != 1):
+    raise refusal
+  return numbers
 
 
 def option_args (command, values):
@@ -182,6 +248,11 @@ def option_args (command, values):
     value = values.get (option['name'], option['default'])
     if (option['kind'] == 'number'):
       args.append ({'type': 'number', 'value': option_number (option, value)})
+      continue
+    if (option['kind'] == 'numbers'):
+      args.append (octave_core.range_arg (
+        [[{'kind': 'number', 'value': number}
+          for number in option_numbers (option, value)]]))
       continue
     if (value not in [choice for choice, unused in option['choices']]):
       raise ValueError ('%s is not a value of "%s".' % (value, option['name']))

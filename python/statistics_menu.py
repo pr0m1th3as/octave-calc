@@ -377,6 +377,11 @@ class Analysis:
       analysis = octave_stats.ANALYSES[command] if command else None
       part ('detail').getModel ().Label = (
         analysis['detail'] if analysis else 'No analyses here yet.')
+      # An analysis that reads no cells hides the range and the layouts
+      reads = bool (analysis) and analysis['input'] == 'range'
+      for name in ('input_label', 'input', 'input_pick', 'input_hint',
+                   'by_label', 'by_hint') + tuple (RADIO_NAMES):
+        part (name).setVisible (reads)
       held = None
       for name, choice in zip (RADIO_NAMES, octave_stats.BY):
         offered = bool (analysis) and choice in analysis['layouts']
@@ -492,22 +497,27 @@ class Analysis:
   def launch (self, answers, interactive):
     """Check the answers, then run the analysis on a worker thread."""
     self.command = answers['command']
-    layouts = octave_stats.ANALYSES[self.command]['layouts']
-    by = answers['by'] if answers['by'] in layouts else layouts[0]
+    analysis = octave_stats.ANALYSES[self.command]
+    layouts = analysis['layouts']
+    by = answers['by'] if answers['by'] in layouts else (layouts or ('',))[0]
+    where = None
     try:
-      source = self.resolve (answers['input'], 'input range')
       corner = self.resolve (answers['output'], 'results range')
-      where = source.getRangeAddress ()
-      errors = source.queryFormulaCells (RESULT_ERROR).getRangeAddresses ()
-      if (errors):
-        allowed = octave_stats.ALLOWED.get (by, octave_stats.ALLOWED['columns'])
-        raise ValueError ('%s holds an error; %s'
-                          % (octave_core.cell_name (errors[0].StartColumn,
-                                                    errors[0].StartRow),
-                             allowed))
-      args = (octave_stats.analysis_args (source.getDataArray (), by,
-                                          where.StartColumn, where.StartRow)
-              + octave_stats.option_args (self.command, answers['options']))
+      args = octave_stats.option_args (self.command, answers['options'])
+      if (analysis['input'] == 'range'):
+        source = self.resolve (answers['input'], 'input range')
+        where = source.getRangeAddress ()
+        errors = source.queryFormulaCells (RESULT_ERROR).getRangeAddresses ()
+        if (errors):
+          allowed = octave_stats.ALLOWED.get (by,
+                                              octave_stats.ALLOWED['columns'])
+          raise ValueError ('%s holds an error; %s'
+                            % (octave_core.cell_name (errors[0].StartColumn,
+                                                      errors[0].StartRow),
+                               allowed))
+        args = (octave_stats.analysis_args (source.getDataArray (), by,
+                                            where.StartColumn, where.StartRow)
+                + args)
     except ValueError as err:
       self.refuse (str (err), answers, interactive)
       return
@@ -560,8 +570,9 @@ class Analysis:
                                        plain (corner.AbsoluteName)),
                    answers, interactive)
       return
-    if (octave_stats.overlaps (bounds (where),
-                               bounds (block.getRangeAddress ()))):
+    if (where is not None
+        and octave_stats.overlaps (bounds (where),
+                                   bounds (block.getRangeAddress ()))):
       self.refuse ('the results, %s, would overwrite the input range.'
                    % plain (block.AbsoluteName), answers, interactive)
       return

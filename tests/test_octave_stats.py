@@ -161,8 +161,11 @@ class Registry (unittest.TestCase):
   def test_every_analysis_is_complete (self):
     for command, analysis in octave_stats.ANALYSES.items ():
       self.assertEqual (sorted (analysis),
-                        ['category', 'detail', 'function', 'layouts',
+                        ['category', 'detail', 'function', 'input', 'layouts',
                          'options', 'title'], command)
+      self.assertIn (analysis['input'], ('range', 'none'), command)
+      self.assertEqual (analysis['input'] == 'none',
+                        analysis['layouts'] == (), command)
       self.assertIn (analysis['category'], octave_stats.CATEGORIES, command)
       self.assertTrue (set (analysis['layouts']) <= set (octave_stats.BY),
                        command)
@@ -193,7 +196,8 @@ class Registry (unittest.TestCase):
       for option in analysis['options']:
         self.assertTrue ({'name', 'kind', 'label', 'hint', 'default'}
                          <= set (option), option)
-        self.assertIn (option['kind'], ('choice', 'number'), option['name'])
+        self.assertIn (option['kind'], ('choice', 'number', 'numbers'),
+                     option['name'])
 
   def test_option_defaults (self):
     self.assertEqual (octave_stats.option_defaults ('KruskalWallis'),
@@ -269,6 +273,50 @@ class NumberOption (unittest.TestCase):
     self.assertEqual (str (raised.exception),
                       'the significance level must be a number greater than 0 '
                       'and less than 1.')
+
+
+class NumbersOption (unittest.TestCase):
+
+  OPTION = {'name': 'levels', 'kind': 'numbers', 'label': 'Levels per factor:',
+            'hint': 'One number per factor.',
+            'accepts': 'one whole number per factor, each 2 or more',
+            'minimum': 1.0, 'maximum': 1000.0, 'whole': True,
+            'default': '2 3 3'}
+
+  def test_typed_list (self):
+    self.assertEqual (octave_stats.option_numbers (self.OPTION, '2 3 3'),
+                      [2.0, 3.0, 3.0])
+
+  def test_commas_accepted (self):
+    self.assertEqual (octave_stats.option_numbers (self.OPTION, '2, 3'),
+                      [2.0, 3.0])
+
+  def test_fraction_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.option_numbers (self.OPTION, '2 2.5')
+    self.assertEqual (str (raised.exception),
+                      'the levels per factor must be one whole number per '
+                      'factor, each 2 or more.')
+
+  def test_empty_refused (self):
+    with self.assertRaises (ValueError):
+      octave_stats.option_numbers (self.OPTION, '   ')
+
+  def test_reaches_octave_as_a_range (self):
+    args = octave_stats.option_args ('FullFactorial', {'levels': '2 3'})
+    self.assertEqual ((args[0]['rows'], args[0]['cols'], args[0]['cells']),
+                      (1, 2, [{'kind': 'number', 'value': 2.0},
+                              {'kind': 'number', 'value': 3.0}]))
+
+  def test_whole_number_option (self):
+    args = octave_stats.option_args ('TwoLevelFactorial', {'factors': '4'})
+    self.assertEqual (args, [{'type': 'number', 'value': 4.0}])
+
+  def test_whole_number_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.option_args ('TwoLevelFactorial', {'factors': '4.5'})
+    self.assertEqual (str (raised.exception),
+                      'the factors must be a whole number from 1 to 15.')
 
 
 class AnalysisArgs (unittest.TestCase):
