@@ -67,6 +67,42 @@ def category_names ():
   """The categories in the order the dialog lists them."""
   return tuple (CATEGORIES)
 
+# The options the three power analyses share, in the order their functions
+# take them.  The null standard deviation is taken by the z and t tests and
+# ignored by the rest, since the dialog cannot leave a number blank.
+POWER_TEST = {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
+              'hint': 'Which test the study will use.',
+              'choices': (('t', 'One-sample or paired t-test'),
+                          ('t2', 'Two-sample t-test'),
+                          ('z', 'One-sample z-test'),
+                          ('var', 'Chi-square test of a variance'),
+                          ('p', 'Test of a proportion'),
+                          ('r', 'Test of a correlation')),
+              'default': 't'}
+
+NULL_VALUE = {'name': 'nullvalue', 'kind': 'number', 'label': 'Null value:',
+              'hint': 'The mean, proportion, variance or correlation under '
+                      'the null hypothesis.',
+              'accepts': 'a number', 'minimum': float ('-inf'),
+              'maximum': float ('inf'), 'default': '5'}
+
+NULL_SD = {'name': 'nullsd', 'kind': 'number',
+           'label': 'Null standard deviation:',
+           'hint': 'Taken by the t and z tests; ignored by the others.',
+           'accepts': 'a number greater than 0', 'minimum': 0.0,
+           'maximum': float ('inf'), 'default': '2'}
+
+SAMPLE_SIZE = {'name': 'n', 'kind': 'number', 'label': 'Sample size:',
+               'hint': 'Observations in the study, or in each group.',
+               'accepts': 'a whole number of 2 or more', 'minimum': 1.0,
+               'maximum': float ('inf'), 'whole': True, 'default': '30'}
+
+ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
+               'label': 'Significance level:',
+               'hint': 'The chance of a false positive. 0.05 by default.',
+               'accepts': 'a number greater than 0 and less than 1',
+               'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
+
 # Every analysis, by the command that runs it, in the order its category lists
 # them.  Adding one is this entry plus its Octave function, and nothing else:
 #
@@ -179,7 +215,66 @@ ANALYSES = {
       {'name': 'factors', 'kind': 'number', 'label': 'Factors:',
        'hint': 'Each factor doubles the number of runs.',
        'accepts': 'a whole number from 1 to 15',
-       'minimum': 0.0, 'maximum': 16.0, 'whole': True, 'default': '3'},)}}
+       'minimum': 0.0, 'maximum': 16.0, 'whole': True, 'default': '3'},)},
+  'SampleSize': {
+    'category': 'Experimental design',
+    'title': 'Sample size',
+    'function': 'octave_calc_sampsize',
+    'input': 'none',
+    'detail': 'How many observations a test needs to reach a given power '
+              'against a stated alternative.\n\n'
+              'Use it before collecting data, when you know roughly what '
+              'difference is worth detecting and how variable the values '
+              'are.\n\n'
+              'The two-sample t-test reports the size of each group.',
+    'layouts': (),
+    'options': (POWER_TEST, NULL_VALUE, NULL_SD,
+                {'name': 'p1', 'kind': 'number', 'label': 'Alternative value:',
+                 'hint': 'The value worth detecting, as a mean, proportion, '
+                         'variance or correlation.',
+                 'accepts': 'a number', 'minimum': float ('-inf'),
+                 'maximum': float ('inf'), 'default': '6'},
+                {'name': 'power', 'kind': 'number', 'label': 'Power:',
+                 'hint': 'The chance of detecting it. Must exceed the '
+                         'significance level.',
+                 'accepts': 'a number greater than 0 and less than 1',
+                 'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
+                ALPHA_LEVEL)},
+  'TestPower': {
+    'category': 'Experimental design',
+    'title': 'Power',
+    'function': 'octave_calc_testpower',
+    'input': 'none',
+    'detail': 'The chance a test of a given size has of detecting a stated '
+              'alternative.\n\n'
+              'Use it on a study already sized, to see what it can and '
+              'cannot show. A low power means a result of no difference says '
+              'little.',
+    'layouts': (),
+    'options': (POWER_TEST, NULL_VALUE, NULL_SD,
+                {'name': 'p1', 'kind': 'number', 'label': 'Alternative value:',
+                 'hint': 'The value worth detecting, as a mean, proportion, '
+                         'variance or correlation.',
+                 'accepts': 'a number', 'minimum': float ('-inf'),
+                 'maximum': float ('inf'), 'default': '6'},
+                SAMPLE_SIZE, ALPHA_LEVEL)},
+  'Detectable': {
+    'category': 'Experimental design',
+    'title': 'Detectable difference',
+    'function': 'octave_calc_detectable',
+    'input': 'none',
+    'detail': 'The smallest alternative a test of a given size can detect '
+              'with a given power.\n\n'
+              'Use it when the sample size is fixed by what is available, to '
+              'see what the study could ever show.',
+    'layouts': (),
+    'options': (POWER_TEST, NULL_VALUE, NULL_SD,
+                {'name': 'power', 'kind': 'number', 'label': 'Power:',
+                 'hint': 'The chance of detecting it. Must exceed the '
+                         'significance level.',
+                 'accepts': 'a number greater than 0 and less than 1',
+                 'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
+                SAMPLE_SIZE, ALPHA_LEVEL)}}
 
 
 def first_analysis ():

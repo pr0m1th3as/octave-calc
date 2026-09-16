@@ -76,7 +76,7 @@ RADIO_NAMES = [radio[0] for radio in RADIOS]
 
 # Option rows the dialog holds ready, since a control cannot be added once it
 # is open.  An analysis may declare no more options than this.
-OPTION_SLOTS = 3
+OPTION_SLOTS = 6
 
 # What each layout means, on hovering over its button.
 LAYOUT_HELP = {
@@ -272,7 +272,7 @@ class Analysis:
     answers."""
     model = self.create ('com.sun.star.awt.UnoControlDialogModel')
     model.Title = MENU_TITLE
-    model.Width, model.Height = 420, 272
+    model.Width, model.Height = 420, 340
     order = [0]
 
     def add (kind, name, x, y, width, height, **properties):
@@ -292,7 +292,7 @@ class Analysis:
     add ('FixedText', 'category_detail', 6, 35, 190, 20, MultiLine = True)
     add ('FixedText', 'analysis_label', 6, 60, 80, 10, Label = 'Analysis:')
     add ('ListBox', 'analysis', 6, 71, 190, 60)
-    add ('FixedText', 'detail', 6, 135, 190, 110, MultiLine = True)
+    add ('FixedText', 'detail', 6, 135, 190, 175, MultiLine = True)
     add ('FixedText', 'input_label', 206, 8, 80, 10, Label = 'Input range:')
     add ('Edit', 'input', 206, 19, 140, 14, Text = answers['input'],
          HelpText = 'The range holding the data, such as Sheet1.A1:C20, or '
@@ -320,14 +320,14 @@ class Analysis:
                  'each value.')
     add ('FixedText', 'options_label', 206, 156, 80, 10, Label = 'Options:')
     for slot in range (OPTION_SLOTS):
-      top = 168 + 26 * slot
+      top = 168 + 24 * slot
       add ('FixedText', 'option%d_label' % slot, 206, top + 2, 100, 10)
       add ('ListBox', 'option%d_box' % slot, 310, top, 104, 12, Dropdown = True)
       add ('Edit', 'option%d_text' % slot, 310, top, 104, 12)
       add ('FixedText', 'option%d_hint' % slot, 206, top + 14, 208, 10)
-    add ('Button', 'ok', 296, 248, 54, 16, Label = 'OK', DefaultButton = True,
+    add ('Button', 'ok', 296, 316, 54, 16, Label = 'OK', DefaultButton = True,
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType', 'OK'))
-    add ('Button', 'cancel', 356, 248, 54, 16, Label = 'Cancel',
+    add ('Button', 'cancel', 356, 316, 54, 16, Label = 'Cancel',
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType',
                                     'CANCEL'))
 

@@ -183,7 +183,17 @@ class Registry (unittest.TestCase):
 
   def test_options_fit_the_dialog (self):
     for command, analysis in octave_stats.ANALYSES.items ():
-      self.assertLessEqual (len (analysis['options']), 3, command)
+      self.assertLessEqual (len (analysis['options']), 6, command)
+
+  def test_analyses_of_experimental_design (self):
+    self.assertEqual (octave_stats.analyses_of ('Experimental design'),
+                      ('FullFactorial', 'TwoLevelFactorial', 'SampleSize',
+                       'TestPower', 'Detectable'))
+
+  def test_power_options_reach_octave_in_order (self):
+    args = octave_stats.option_args ('SampleSize', {})
+    self.assertEqual ([arg['value'] for arg in args],
+                      ['t', 5.0, 2.0, 6.0, 0.9, 0.05])
 
   def test_analyses_of_empty_category (self):
     self.assertEqual (octave_stats.analyses_of ('Distributions'), ())
