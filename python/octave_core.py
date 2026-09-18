@@ -26,17 +26,20 @@ of numbers, strings, logical values and ranges, each range cell carrying its
 kind and value, dates and times as serial numbers from the document's null
 date.
 
-Every call runs in a sandboxed devtools.mcpEval server, on Linux only.  No
-cell is evaluated where no sandbox can run, and none by a server that does
-not report its sandbox.
+Every call runs in a devtools.mcpEval server, which is sandboxed where the
+machine allows it and says in every result whether it is.  A cell is
+evaluated only by a server reporting its sandbox active; the Statistics menu
+runs in every state, since its functions come from the extension and its data
+travels as values.
 """
 
 import atexit
 import hashlib
 import json
+import glob
 import os
+import queue
 import re
-import select
 import shutil
 import struct
 import subprocess
@@ -47,6 +50,16 @@ import time
 
 OCTAVE_CANDIDATES = ('octave-cli',)
 
+# Where the Windows installer and the CI layout put Octave, which is on no
+# PATH there
+WINDOWS_OCTAVE = (
+  os.path.join (os.environ.get ('LOCALAPPDATA', ''), 'Programs', 'GNU Octave',
+                'Octave-*', 'mingw64', 'bin', 'octave-cli.exe'),
+  os.path.join (os.environ.get ('ProgramFiles', 'C:\\Program Files'),
+                'GNU Octave', 'Octave-*', 'mingw64', 'bin', 'octave-cli.exe'),
+  os.path.join ('C:\\', 'octave-ci', 'octave-*', 'mingw64', 'bin',
+                'octave-cli.exe'))
+
 # A bare function name, or a namespaced or static-method one: mean, geom.area,
 # ClassName.method.  Anything else never reaches the interpreter.
 NAME_RE = re.compile (r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$')
@@ -55,10 +68,13 @@ OCTAVE_FLAGS = ('-q', '--no-init-file', '--no-site-file', '--no-history')
 
 # The server, launched as devtools documents it.  What it may read and load,
 # and its budgets, travel in the environment, never in this text.
-LAUNCH = "pkg load devtools; devtools.mcpEval ('Sandbox', true)"
+LAUNCH = "pkg load devtools; devtools.mcpEval ('Sandbox')"
 
-# A sandboxed server reports itself under this key of its results' _meta.
+# Every result of the server states its sandbox under this key of its _meta,
+# and why it is not active under the second.
 SANDBOX_KEY = 'io.github.pr0m1th3as.devtools/sandbox'
+REASON_KEY = 'io.github.pr0m1th3as.devtools/sandboxReason'
+STATES = ('active', 'failed', 'unavailable')
 
 PROTOCOL_VERSION = '2025-11-25'
 
@@ -126,12 +142,26 @@ _RANGES_LIMIT = 200
 
 
 def octave ():
-  """Absolute path to an Octave interpreter, or None."""
+  """Absolute path to an Octave interpreter, or None.  On Windows, where the
+  installer puts Octave on no PATH, the newest one in the usual places."""
   for name in OCTAVE_CANDIDATES:
     found = shutil.which (name)
     if (found):
       return found
+  if (sys.platform == 'win32'):
+    found = []
+    for pattern in WINDOWS_OCTAVE:
+      found.extend (glob.glob (pattern))
+    if (found):
+      return max (found, key = version_key)
   return None
+
+
+def version_key (path):
+  """The last version number in PATH, as numbers, for choosing the newest
+  installation."""
+  found = re.findall (r'(\d+)\.(\d+)\.(\d+)', path)
+  return [int (n) for n in found[-1]] if found else []
 
 
 def octave_version (binary):
@@ -505,18 +535,21 @@ def iso_date (date):
   return '%04d-%02d-%02d' % (date.Year, date.Month, date.Day)
 
 
-def sandbox_problem ():
-  """Why no sandboxed Octave can run on this machine, or None."""
-  if (not sys.platform.startswith ('linux')):
-    return ('Octave for LibreOffice Calc runs on Linux only, where Octave is '
-            'sandboxed.')
+def octave_problem ():
+  """Why no Octave can run on this machine, or None.  Whether it runs in a
+  sandbox is the server's to say."""
   if (not octave ()):
-    return 'no octave-cli on PATH.'
-  if (not shutil.which ('bwrap')):
-    return 'no sandbox: bwrap is not installed (package bubblewrap).'
-  if (not shutil.which ('prlimit')):
-    return 'no sandbox: prlimit is not installed (package util-linux).'
+    return 'no octave-cli was found.'
   return None
+
+
+def sandbox_refusal (state, reason):
+  """Why a server in STATE, for REASON, evaluates no cell."""
+  if (state == 'failed'):
+    return ('cells run only inside a sandbox, and the sandbox failed here: '
+            '%s.' % reason.rstrip ('.'))
+  return ('cells run only inside a sandbox, and there is none here: %s.'
+          % reason.rstrip ('.'))
 
 
 def user_manager ():
@@ -554,10 +587,29 @@ def launch_command (binary, settings, unit = None, inherited = None):
           + ['--'] + command)
 
 
-def sandbox_confirmed (result):
-  """True when the initialize RESULT of a server reports its sandbox."""
+def sandbox_state (result):
+  """The sandbox state the initialize RESULT of a server reports, and why it
+  is not active: ('active', ''), ('failed', reason) or ('unavailable',
+  reason).  (None, '') for a server that reports none, which is a devtools
+  older than 0.2.1."""
   meta = (result or {}).get ('_meta') or {}
-  return meta.get (SANDBOX_KEY) is True
+  state = meta.get (SANDBOX_KEY)
+  if (state not in STATES):
+    return (None, '')
+  return (state, meta.get (REASON_KEY) or '')
+
+
+_WARNED = []
+
+
+def failed_warning (runner):
+  """The warning to show once per session when RUNNER's sandbox failed, or
+  None: once shown, or where the sandbox is active or never existed."""
+  if (runner.state != 'failed' or _WARNED):
+    return None
+  _WARNED.append (True)
+  return ('The Octave sandbox failed on this machine: %s.  The Statistics '
+          'menu works without it; cells need it.' % runner.reason.rstrip ('.'))
 
 
 def cell_value (kind, cell):
@@ -596,22 +648,27 @@ def output_rows (output):
 
 
 class Server:
-  """One sandboxed devtools.mcpEval process, spoken to over its pipes one
-  request at a time.  It starts on its first call, and again on the call
-  after it has died or been stopped.
+  """One devtools.mcpEval process, spoken to over its pipes one request at a
+  time.  It starts on its first call, and again on the call after it has died
+  or been stopped.
 
   SETTINGS holds 'folders' and 'packages', lists, and 'memory', 'tmp' and
-  'seconds', numbers: the budgets in gigabytes and the deadline."""
+  'seconds', numbers: the budgets in gigabytes and the deadline.  With
+  SANDBOX_ONLY, as for cells, it evaluates nothing unless the server reports
+  its sandbox active; STATE and REASON hold what it reported."""
 
   # Numbers the systemd units of the servers this process starts
   started = 0
 
-  def __init__ (self, settings):
+  def __init__ (self, settings, sandbox_only = True):
     self.settings = settings
+    self.sandbox_only = sandbox_only
+    self.state = None
+    self.reason = ''
     self.process = None
     self.unit = None
     self.errors = None
-    self.buffer = b''
+    self.lines = None
     self.next_id = 0
     self.lock = threading.Lock ()
 
@@ -621,6 +678,8 @@ class Server:
     with self.lock:
       if (self.process is None or self.process.poll () is not None):
         self._start ()
+      if (self.sandbox_only and self.state != 'active'):
+        raise RuntimeError (sandbox_refusal (self.state, self.reason))
       reply = self._request ('tools/call', {
         'name': 'octave_call',
         'arguments': {'function': name, 'args': args, 'nargout': nargout,
@@ -659,7 +718,7 @@ class Server:
       self.errors = None
 
   def _start (self):
-    problem = sandbox_problem ()
+    problem = octave_problem ()
     if (problem):
       raise RuntimeError (problem)
     self.stop ()
@@ -678,18 +737,26 @@ class Server:
     # A file rather than a pipe, which nothing reads until it is needed and
     # which therefore can never fill and stall the server
     self.errors = tempfile.TemporaryFile ()
-    self.buffer = b''
+    # No console window for it on Windows
+    flags = 0x08000000 if (sys.platform == 'win32') else 0
     self.process = subprocess.Popen (command, stdin = subprocess.PIPE,
                                      stdout = subprocess.PIPE,
-                                     stderr = self.errors, env = env)
+                                     stderr = self.errors, env = env,
+                                     creationflags = flags)
+    # Read by a thread of its own, continuously: select works on no pipe on
+    # Windows, where a pipe also blocks its writer at about 4 KB
+    self.lines = queue.Queue ()
+    threading.Thread (target = read_lines,
+                      args = (self.process.stdout, self.lines),
+                      daemon = True).start ()
     reply = self._request ('initialize', {
       'protocolVersion': PROTOCOL_VERSION, 'capabilities': {},
       'clientInfo': {'name': 'octave-calc', 'version': '0.1.0'}},
       START_SECONDS)
-    if (not sandbox_confirmed (reply.get ('result'))):
+    self.state, self.reason = sandbox_state (reply.get ('result'))
+    if (self.state is None):
       self.stop ()
-      raise RuntimeError ('the Octave server did not report a sandbox, so '
-                          'nothing was evaluated.')
+      raise RuntimeError ('the Octave server needs devtools 0.2.1 or later.')
     self._send ({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
 
   def _send (self, message):
@@ -710,21 +777,14 @@ class Server:
         return reply
 
   def _read_line (self, deadline, seconds):
-    out = self.process.stdout.fileno ()
-    while (b'\n' not in self.buffer):
-      left = deadline - time.monotonic ()
-      if (left <= 0):
-        self.stop ()
-        raise RuntimeError ('Octave did not answer within %g seconds and was '
-                            'stopped; the next call starts it again.'
-                            % seconds)
-      ready, _, _ = select.select ([out], [], [], left)
-      if (ready):
-        chunk = os.read (out, 65536)
-        if (not chunk):
-          raise RuntimeError (self._died ())
-        self.buffer += chunk
-    line, self.buffer = self.buffer.split (b'\n', 1)
+    try:
+      line = self.lines.get (timeout = max (0.0, deadline - time.monotonic ()))
+    except queue.Empty:
+      self.stop ()
+      raise RuntimeError ('Octave did not answer within %g seconds and was '
+                          'stopped; the next call starts it again.' % seconds)
+    if (line is None):
+      raise RuntimeError (self._died ())
     return line.decode ()
 
   def _died (self):
@@ -740,13 +800,31 @@ class Server:
                   and line != 'error: called from']
       said = messages[-1] if messages else (lines[-1] if lines else '')
     self.stop ()
+    # devtools 0.2.0 refuses the one-argument form with one of these
+    if ('mcpEval: invalid number of input arguments' in said
+        or "the only option is 'Sandbox'" in said):
+      return 'the Octave server needs devtools 0.2.1 or later.'
+
     if (said):
       return 'the Octave server stopped: %s' % said
     return 'the Octave server stopped.'
 
 
-# One server per role, 'cell' and 'workbench', since a formula blocks Calc and
-# a workbench analysis may run for minutes: each has its own deadline.
+def read_lines (stream, lines):
+  """Put every line STREAM yields into LINES, without its newline, and None
+  at its end."""
+  try:
+    for line in iter (stream.readline, b''):
+      lines.put (line.rstrip (b'\r\n'))
+  except (OSError, ValueError):
+    pass
+  lines.put (None)
+
+
+# One server per role, 'cell', 'workbench' and 'statistics', since a formula
+# blocks Calc and an analysis may run for minutes: each has its own deadline.
+# The Statistics menu alone runs without a sandbox, its functions coming from
+# the extension and never from the document.
 _SERVERS = {}
 _SERVERS_LOCK = threading.Lock ()
 
@@ -759,7 +837,7 @@ def server (role, settings):
     if (found is None or found.settings != settings):
       if (found is not None):
         found.stop ()
-      found = Server (settings)
+      found = Server (settings, sandbox_only = (role != 'statistics'))
       _SERVERS[role] = found
     return found
 

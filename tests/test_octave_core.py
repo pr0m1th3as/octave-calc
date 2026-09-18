@@ -19,15 +19,19 @@
 
   python3 -m unittest discover tests
 
-The tests that run Octave do so in the real sandboxed devtools server, and are
-skipped where no sandbox can run.  They need Linux, bwrap, prlimit, octave-cli
-and the devtools package, and one of them the datatypes package.
+The tests that run Octave do so in the real devtools server, and those that
+need its sandbox are skipped unless a server here reports it active.  They
+need octave-cli and devtools 0.2.1 or later, and one of them the datatypes
+package.
 """
 
+import io
 import math
 import os
+import queue
 import struct
 import sys
+import tempfile
 import types
 import unittest
 
@@ -540,22 +544,91 @@ class LaunchCommand (unittest.TestCase):
                       octave_core.launch_command ('/bin/octave-cli', LIMITS))
 
 
-class SandboxConfirmed (unittest.TestCase):
+class SandboxState (unittest.TestCase):
 
-  def test_reported (self):
-    self.assertTrue (octave_core.sandbox_confirmed (
-      {'_meta': {octave_core.SANDBOX_KEY: True}}))
+  def test_active (self):
+    self.assertEqual (octave_core.sandbox_state (
+      {'_meta': {octave_core.SANDBOX_KEY: 'active'}}), ('active', ''))
+
+  def test_failed_with_reason (self):
+    self.assertEqual (octave_core.sandbox_state (
+      {'_meta': {octave_core.SANDBOX_KEY: 'failed',
+                 octave_core.REASON_KEY: 'bwrap cannot build its namespaces'}}),
+      ('failed', 'bwrap cannot build its namespaces'))
+
+  def test_unavailable (self):
+    self.assertEqual (octave_core.sandbox_state (
+      {'_meta': {octave_core.SANDBOX_KEY: 'unavailable',
+                 octave_core.REASON_KEY: 'Windows'}}), ('unavailable', 'Windows'))
+
+  def test_older_devtools_reports_none (self):
+    self.assertEqual (octave_core.sandbox_state (
+      {'_meta': {octave_core.SANDBOX_KEY: True}}), (None, ''))
 
   def test_absent (self):
-    self.assertFalse (octave_core.sandbox_confirmed (
-      {'protocolVersion': '2025-11-25'}))
+    self.assertEqual (octave_core.sandbox_state (
+      {'protocolVersion': '2025-11-25'}), (None, ''))
 
   def test_no_result (self):
-    self.assertFalse (octave_core.sandbox_confirmed (None))
+    self.assertEqual (octave_core.sandbox_state (None), (None, ''))
 
-  def test_only_true_counts (self):
-    self.assertFalse (octave_core.sandbox_confirmed (
-      {'_meta': {octave_core.SANDBOX_KEY: 'true'}}))
+
+class SandboxRefusal (unittest.TestCase):
+
+  def test_failed (self):
+    self.assertEqual (octave_core.sandbox_refusal ('failed', 'no namespaces.'),
+                      'cells run only inside a sandbox, and the sandbox '
+                      'failed here: no namespaces.')
+
+  def test_unavailable (self):
+    self.assertEqual (octave_core.sandbox_refusal ('unavailable', 'Windows'),
+                      'cells run only inside a sandbox, and there is none '
+                      'here: Windows.')
+
+
+class FailedWarning (unittest.TestCase):
+
+  def setUp (self):
+    del octave_core._WARNED[:]
+
+  def tearDown (self):
+    del octave_core._WARNED[:]
+
+  def test_once (self):
+    runner = types.SimpleNamespace (state = 'failed', reason = 'no namespaces')
+    first = octave_core.failed_warning (runner)
+    self.assertEqual ((first.startswith ('The Octave sandbox failed on this '
+                                         'machine: no namespaces.'),
+                       octave_core.failed_warning (runner)), (True, None))
+
+  def test_not_for_unavailable (self):
+    runner = types.SimpleNamespace (state = 'unavailable', reason = 'Windows')
+    self.assertIsNone (octave_core.failed_warning (runner))
+
+  def test_not_for_active (self):
+    runner = types.SimpleNamespace (state = 'active', reason = '')
+    self.assertIsNone (octave_core.failed_warning (runner))
+
+
+class ReadLines (unittest.TestCase):
+
+  def test_lines_then_end (self):
+    lines = queue.Queue ()
+    octave_core.read_lines (io.BytesIO (b'{"a":1}\r\n{"b":2}\n'), lines)
+    self.assertEqual ([lines.get (), lines.get (), lines.get ()],
+                      [b'{"a":1}', b'{"b":2}', None])
+
+
+class VersionKey (unittest.TestCase):
+
+  def test_newest (self):
+    paths = ['C:\\GNU Octave\\Octave-9.4.0\\mingw64\\bin\\octave-cli.exe',
+             'C:\\GNU Octave\\Octave-11.10.1\\mingw64\\bin\\octave-cli.exe',
+             'C:\\GNU Octave\\Octave-11.3.0\\mingw64\\bin\\octave-cli.exe']
+    self.assertEqual (max (paths, key = octave_core.version_key), paths[1])
+
+  def test_no_version (self):
+    self.assertEqual (octave_core.version_key ('C:\\octave\\bin'), [])
 
 
 def bits (value):
@@ -609,7 +682,6 @@ class OutputRows (unittest.TestCase):
                       (('',),))
 
 
-SANDBOX = octave_core.sandbox_problem () is None
 FUNCTIONS = os.path.join (os.path.dirname (os.path.abspath (__file__)),
                           'functions')
 
@@ -619,6 +691,26 @@ def settings (**changes):
           'seconds': 10}
   base.update (changes)
   return base
+
+
+def state_here ():
+  """The sandbox state a server reports on this machine, None where none
+  starts.  Asked of a real server, since bwrap can be installed and refused."""
+  if (octave_core.octave_problem ()):
+    return None
+  runner = octave_core.Server (settings (), sandbox_only = False)
+  try:
+    octave_core.call ('plus', [{'type': 'number', 'value': 1.0},
+                               {'type': 'number', 'value': 1.0}],
+                      runner = runner)
+    return runner.state
+  finally:
+    runner.stop ()
+    octave_core.clear ()
+
+
+STATE = state_here ()
+SANDBOX = (STATE == 'active')
 
 
 def date_range ():
@@ -679,8 +771,8 @@ class Server (unittest.TestCase):
 
   def test_system_refused (self):
     self.assertEqual (self.call ('system', 'true'),
-                      (('octave-calc: system is not available in a '
-                        'sandbox.',),))
+                      (('octave-calc: system is not available to '
+                        'octave_call.',),))
 
   def test_dates_need_datatypes (self):
     self.assertEqual (
@@ -732,6 +824,30 @@ class OwnServers (unittest.TestCase):
       self.run_once ('plus', [date_range (), {'type': 'number', 'value': 1.0}],
                      packages = ['datatypes']),
       ((45659.0,),))
+
+  def test_cells_refused_without_the_sandbox (self):
+    # A folder inside /tmp is one bwrap refuses, so the sandbox fails
+    with tempfile.TemporaryDirectory (dir = '/tmp') as folder:
+      result = self.run_once ('plus', [{'type': 'number', 'value': 1.0},
+                                       {'type': 'number', 'value': 2.0}],
+                              folders = [folder])
+    self.assertTrue (result[0][0].startswith (
+      'octave-calc: cells run only inside a sandbox, and the sandbox failed '
+      'here: folder'))
+
+  def test_menu_runs_without_the_sandbox (self):
+    with tempfile.TemporaryDirectory (dir = '/tmp') as folder:
+      runner = octave_core.Server (settings (folders = [folder]),
+                                   sandbox_only = False)
+      try:
+        result = octave_core.call ('plus', [{'type': 'number', 'value': 1.0},
+                                            {'type': 'number', 'value': 2.0}],
+                                   runner = runner)
+        state = runner.state
+      finally:
+        runner.stop ()
+        octave_core.clear ()
+    self.assertEqual ((state, result), ('failed', ((3.0,),)))
 
   def test_missing_package_refused (self):
     result = self.run_once ('mean', [{'type': 'number', 'value': 1.0}],

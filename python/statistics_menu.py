@@ -224,7 +224,7 @@ class Analysis:
       self.post (lambda: self.prompt (answers))
 
   def start (self, options):
-    problem = octave_core.sandbox_problem ()
+    problem = octave_core.octave_problem ()
     if (problem):
       self.message (sentence (problem))
       return
@@ -540,11 +540,15 @@ class Analysis:
 
     def work ():
       try:
-        outputs = octave_core.server ('statistics', settings).call (
-          function, args, null_date)
+        runner = octave_core.server ('statistics', settings)
+        outputs = runner.call (function, args, null_date)
         table = octave_stats.results (outputs)
         self.post (lambda: self.land (where, corner, table, answers,
                                       interactive))
+        # A sandbox that should work and does not is said once a session
+        warning = octave_core.failed_warning (runner)
+        if (warning):
+          self.post (lambda: self.message (warning, 'WARNINGBOX'))
       except Exception as err:
         detail = octave_stats.reason (str (err), function)
         self.post (lambda: self.refuse (detail, answers, interactive))

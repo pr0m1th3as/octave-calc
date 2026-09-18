@@ -49,10 +49,13 @@ output range, then Ctrl+Shift+Enter, since Calc has no spilling. Results
 recalculate when their source cells change, and a repeated call with
 unchanged inputs is answered from a cache.
 
-**Every call runs in a sandbox**: no network, no other program can be started,
+**Cells run only in a sandbox**: no network, no other program can be started,
 nothing on disk can be written, and only the folders and packages you choose
-are visible. A call is stopped after 10 seconds. Without a working sandbox
-nothing is evaluated, and the cell says what is missing.
+are visible. A call is stopped after 10 seconds. Where no sandbox can run,
+no cell is evaluated, and the cell says why. The Statistics menu runs its
+analyses with or without a sandbox, since what it runs comes from the
+extension and never from the document; when a sandbox that should work
+fails, it says so once.
 
 The settings are under `org.octavecalc.Settings` in Tools > Options > Advanced
 > Open Expert Configuration: the folders holding your own functions, the
@@ -63,14 +66,16 @@ because Calc waits for a formula to return, is the next piece.
 
 ## Requirements
 
-Linux only. On the user's machine:
+On the user's machine:
 
 1. LibreOffice, with this extension installed.
-2. GNU Octave, with `octave-cli` on `PATH`, and the Octave packages the
-   user's functions rely on.
-3. The Octave package `devtools`, version 0.2.0 or later, which runs the
-   sandbox.
-4. `bwrap` from the `bubblewrap` package, and `prlimit` from `util-linux`.
+2. GNU Octave, with `octave-cli` on `PATH`, or on Windows in the installer's
+   usual place, and the Octave packages the user's functions rely on.
+3. The Octave package `devtools`, version 0.2.1 or later, which runs the
+   server and its sandbox.
+4. For cells, a sandbox: on Linux `bwrap` from the `bubblewrap` package and
+   `prlimit` from `util-linux`, on macOS the system's `sandbox-exec`. Windows
+   has none yet, so there only the Statistics menu runs.
 
 Where a systemd user session is running, Octave is started through it, which
 lets the sandbox work when LibreOffice itself runs under an AppArmor profile.

@@ -310,7 +310,7 @@ def _number (value):
 
 def check_environment ():
   """Report whether the two things this needs are in place."""
-  problem = octave_core.sandbox_problem ()
+  problem = octave_core.octave_problem ()
   if (problem):
     _message ('Octave for LibreOffice Calc', problem, 'ERRORBOX')
     return
@@ -337,7 +337,7 @@ def check_environment ():
 def run_selection ():
   """Run an Octave function over a range and write back what it returns.
   Returns at once; the work happens on a thread."""
-  problem = octave_core.sandbox_problem ()
+  problem = octave_core.octave_problem ()
   if (problem):
     _message ('Octave for LibreOffice Calc', problem, 'ERRORBOX')
     return

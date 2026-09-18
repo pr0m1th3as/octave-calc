@@ -366,8 +366,10 @@ class Overlaps (unittest.TestCase):
     self.assertFalse (octave_stats.overlaps ((0, 0, 0, 2, 9), (1, 0, 0, 2, 9)))
 
 
-@unittest.skipUnless (octave_core.sandbox_problem () is None,
-                      'no sandbox on this machine')
+# The menu runs its analyses with or without a sandbox, so these run wherever
+# Octave does, as the menu's own server does
+@unittest.skipUnless (octave_core.octave_problem () is None,
+                      'no Octave on this machine')
 class AnalysesInOctave (unittest.TestCase):
 
   @classmethod
@@ -375,7 +377,7 @@ class AnalysesInOctave (unittest.TestCase):
     cls.runner = octave_core.Server (
       {'folders': [os.path.join (ROOT, 'octave')],
        'packages': [octave_stats.PACKAGE], 'memory': 2, 'tmp': 2,
-       'seconds': 60})
+       'seconds': 60}, sandbox_only = False)
 
   @classmethod
   def tearDownClass (cls):
