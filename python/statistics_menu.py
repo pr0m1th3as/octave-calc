@@ -103,13 +103,20 @@ LAYOUT_HELP = {
     'labels-data': 'Three columns: the two factors of each value, then the '
                    'values.  A first row of text names the two factors.',
     'data-labels': 'Three columns: the values, then the two factors of each.  '
-                   'A first row of text names the two factors.'}}
+                   'A first row of text names the two factors.'},
+  'sample': {
+    'columns': 'One column of values.  A first row of text is read as the '
+               'name of the sample.',
+    'rows': 'One row of values.  A first column of text is read as the name '
+            'of the sample.',
+    'labels-data': '',
+    'data-labels': ''}}
 
 # What the layout chooser is called and what it says under itself, by the kind
 # of input, since matched measurements are not groups and reading one as the
 # other answers a different question in silence.
 BY_LABEL = {'range': 'Grouped by:', 'matched': 'Measurements in:',
-            'factors': 'Factors in:'}
+            'factors': 'Factors in:', 'sample': 'Sample in:'}
 
 BY_HINT = {
   'range': 'Columns or Rows: one group each, whose first cell may hold its '
@@ -120,7 +127,9 @@ BY_HINT = {
              'name.  A subject missing any measurement is left out whole.',
   'factors': 'Three columns: the values and the two factors each value was '
              'measured under, the factors before the values or after them.  '
-             'A first row of text names the two factors.'}
+             'A first row of text names the two factors.',
+  'sample': 'Columns or Rows: one column, or one row, of values, whose first '
+            'cell may hold the name of the sample.'}
 
 # One analysis at a time.  A second would fight the first for the sheet.
 _busy = threading.Lock ()

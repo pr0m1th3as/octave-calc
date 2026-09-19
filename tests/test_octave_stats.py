@@ -266,7 +266,36 @@ class Registry (unittest.TestCase):
     self.assertEqual (octave_stats.analyses_of ('Group comparisons'),
                       ('KruskalWallis', 'Anova1', 'Ttest2', 'Ranksum',
                        'VarTestN', 'Anova2', 'TtestPaired', 'SignRank',
-                       'SignTest', 'Friedman'))
+                       'SignTest', 'Friedman', 'Ttest1'))
+
+  def test_analyses_of_distribution_fitting (self):
+    self.assertEqual (octave_stats.analyses_of ('Distribution fitting'),
+                      ('Normality', 'Chi2gof', 'Fitdist', 'Isoutlier'))
+
+  def test_sample_analyses_take_no_label_layout (self):
+    for command, analysis in octave_stats.ANALYSES.items ():
+      if (analysis['input'] == 'sample'):
+        self.assertEqual (analysis['layouts'], ('columns', 'rows'), command)
+
+  def test_option_args_of_ttest1 (self):
+    self.assertEqual (octave_stats.option_args ('Ttest1', {}),
+                      [{'type': 'number', 'value': 0.0},
+                       {'type': 'string', 'value': 'both'},
+                       {'type': 'number', 'value': 0.05}])
+
+  def test_option_args_of_fitdist (self):
+    self.assertEqual (octave_stats.option_args ('Fitdist', {}),
+                      [{'type': 'string', 'value': 'Normal'},
+                       {'type': 'string', 'value': 'none'},
+                       {'type': 'number', 'value': 0.05}])
+
+  def test_option_args_of_isoutlier (self):
+    self.assertEqual (octave_stats.option_args ('Isoutlier', {}),
+                      [{'type': 'string', 'value': 'median'},
+                       {'type': 'number', 'value': 0.0}])
+
+  def test_sample_refusal_names_the_sample (self):
+    self.assertIn ('sample names', octave_stats.allowed ('columns', 'sample'))
 
   def test_options_fit_the_dialog (self):
     for command, analysis in octave_stats.ANALYSES.items ():
@@ -536,10 +565,10 @@ class AnalysesInOctave (unittest.TestCase):
   def tearDownClass (cls):
     cls.runner.stop ()
 
-  def run_analysis (self, rows, by, command = 'KruskalWallis'):
+  def run_analysis (self, rows, by, command = 'KruskalWallis', options = {}):
     analysis = octave_stats.ANALYSES[command]
     args = (octave_stats.analysis_args (rows, by, 0, 0, analysis['input'])
-            + octave_stats.option_args (command, {}))
+            + octave_stats.option_args (command, options))
     return octave_stats.results (self.runner.call (analysis['function'], args))
 
   def titled (self, command):
@@ -691,6 +720,60 @@ class AnalysesInOctave (unittest.TestCase):
       'every combination of Fert and Var holds at most one value, so the '
       'interaction cannot be told apart from the error; take the two effects '
       'as adding instead.')
+
+  SAMPLE = (('Yield',), (4.2,), (5.1,), (3.8,), (6.0,), (4.9,), (5.5,),
+            (4.1,), (5.8,), (4.6,), (5.2,), (3.9,), (6.3,), (4.4,), (5.0,),
+            (4.8,), (5.3,), (4.7,), (5.6,), (4.0,), (5.9,), (4.3,), (5.4,),
+            (4.5,), (5.7,), (4.85,))
+
+  def test_one_sample_ttest_reaches_cells (self):
+    table = self.run_analysis (self.SAMPLE, 'columns', 'Ttest1')
+    self.assertEqual (table[0][0], self.titled ('Ttest1'))
+    self.assertEqual (table[3][:2], ('Yield', 25.0))
+    self.assertEqual (table[5][0], 'Difference from 0 (two-sided, alpha 0.05)')
+
+  def test_normality_reaches_cells (self):
+    table = self.run_analysis (self.SAMPLE, 'columns', 'Normality')
+    self.assertEqual (table[0][0], self.titled ('Normality'))
+    self.assertEqual ([line[0] for line in table[-4:]],
+                      ['Anderson-Darling', 'Lilliefors', 'Jarque-Bera',
+                       'Shapiro-Wilk'])
+
+  def test_too_many_bins_are_refused_by_name (self):
+    with self.assertRaises (RuntimeError) as raised:
+      self.run_analysis (self.SAMPLE, 'columns', 'Chi2gof')
+    self.assertIn ('leave no degrees of freedom',
+                   octave_stats.reason (str (raised.exception),
+                                        'octave_calc_chi2gof'))
+
+  def test_goodness_of_fit_reaches_cells (self):
+    table = self.run_analysis (self.SAMPLE, 'columns', 'Chi2gof',
+                               {'nbins': '6'})
+    self.assertEqual (table[0][0], self.titled ('Chi2gof'))
+    self.assertEqual ([line[0] for line in table[6:11]],
+                      ['Statistic', 'DoF', 'p-value', 'Bins asked for',
+                       'Bins counted'])
+
+  def test_fitdist_reaches_cells (self):
+    table = self.run_analysis (self.SAMPLE, 'columns', 'Fitdist')
+    self.assertEqual (table[0][0], self.titled ('Fitdist'))
+    self.assertEqual (table[6][:4], ('Parameter', 'Estimate', 'Lower bound',
+                                     'Upper bound'))
+    self.assertEqual ([line[0] for line in table[7:9]], ['mu', 'sigma'])
+
+  def test_outliers_reach_cells (self):
+    rows = self.SAMPLE + ((18.4,),)
+    table = self.run_analysis (rows, 'columns', 'Isoutlier')
+    self.assertEqual (table[0][0], self.titled ('Isoutlier'))
+    self.assertEqual (table[6][:3], ('Row', 'Value', 'Beyond the bound'))
+    self.assertEqual (table[7][:2], (26.0, 18.4))
+
+  def test_the_fitted_distributions_are_the_ones_fitdist_takes (self):
+    """The registry names them so the dialog can list them without asking
+    Octave; this is what catches a distribution gained or lost upstream."""
+    listed = self.runner.call ('fitdist', [])
+    named = tuple (line[0] for line in octave_core.output_rows (listed[0]))
+    self.assertEqual (named, octave_stats.FITTED)
 
   def test_refusal_names_no_function (self):
     with self.assertRaises (RuntimeError) as raised:

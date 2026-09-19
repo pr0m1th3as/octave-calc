@@ -48,12 +48,13 @@ OFFICE_TYPES = ('/usr/lib/libreoffice/program/types.rdb',
 
 # Every analysis function, and the helpers they share, which must be listed
 # here or the menu offers an analysis the sandbox cannot run.
-ANALYSES = ('anova1', 'anova2', 'detectable', 'ff2n', 'friedman', 'fullfact',
-            'kruskalwallis', 'ranksum', 'sampsize', 'signrank', 'signtest',
-            'testpower', 'ttest2', 'ttestpaired', 'vartestn')
+ANALYSES = ('anova1', 'anova2', 'chi2gof', 'detectable', 'ff2n', 'fitdist',
+            'friedman', 'fullfact', 'isoutlier', 'kruskalwallis',
+            'normality', 'ranksum', 'sampsize', 'signrank', 'signtest',
+            'testpower', 'ttest1', 'ttest2', 'ttestpaired', 'vartestn')
 
 HELPERS = ('alpha', 'dof', 'dropped', 'factors', 'groups', 'matched', 'names',
-           'pairs', 'sampsizepwr', 'tail')
+           'pairs', 'sample', 'sampsizepwr', 'tail')
 
 # Published path inside the package, against the source under the repository.
 CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),

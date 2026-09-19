@@ -40,13 +40,14 @@ BY = ('columns', 'rows', 'labels-data', 'data-labels')
 # per column, or per row, taken on the same subjects, so that a row of the
 # range is one subject; 'factors', each value beside the two factors it was
 # measured under; or 'none', it reads no cells at all.
-INPUTS = ('range', 'matched', 'factors', 'none')
+INPUTS = ('range', 'matched', 'factors', 'sample', 'none')
 
 # What a column or a row of the input range holds, by the kind of input.  The
 # dialog and every refusal say it in the user's words, since reading matched
 # measurements as independent groups, or the other way about, answers a
 # question the user did not ask and says nothing about it.
-NOUN = {'range': 'group', 'matched': 'measurement', 'factors': 'factor'}
+NOUN = {'range': 'group', 'matched': 'measurement',
+        'factors': 'factor', 'sample': 'sample'}
 
 
 def allowed (by, kind = 'range'):
@@ -121,6 +122,34 @@ ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
                'hint': 'The chance of a false positive. 0.05 by default.',
                'accepts': 'a number greater than 0 and less than 1',
                'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
+
+# The layouts an analysis of one sample takes: a column of values, or a row.
+SAMPLE = ('columns', 'rows')
+
+# The distributions fitdist takes, in its own order.  A test asks the live
+# server for the list and compares, so that a distribution gained or lost in
+# statistics is caught here rather than by a user.
+FITTED = ('Beta', 'Binomial', 'BirnbaumSaunders', 'Burr', 'Exponential',
+          'ExtremeValue', 'Gamma', 'GeneralizedExtremeValue',
+          'GeneralizedPareto', 'HalfNormal', 'InverseGaussian', 'Kernel',
+          'Logistic', 'Loglogistic', 'Lognormal', 'Nakagami',
+          'NegativeBinomial', 'Normal', 'Poisson', 'Rayleigh', 'Rician',
+          'Stable', 'tLocationScale', 'Weibull')
+
+TAIL_MEANS_SAMPLE = {'name': 'tail', 'kind': 'choice',
+                     'label': 'Alternative:',
+                     'hint': "What the test is prepared to find, the sample "
+                             "against the value.",
+                     'choices': (('both', 'the means differ'),
+                                 ('right', "the sample's mean is greater"),
+                                 ('left', "the sample's mean is smaller")),
+                     'default': 'both'}
+
+DISTRIBUTION_FIT = {'name': 'distname', 'kind': 'choice',
+                    'label': 'Distribution:',
+                    'hint': 'The distribution to fit to the sample.',
+                    'choices': tuple ((name, name) for name in FITTED),
+                    'default': 'Normal'}
 
 # The layouts an analysis of two factors takes: the two factor columns
 # before the values, or after them.  A column or a row per level cannot say
@@ -443,6 +472,124 @@ ANALYSES = {
                    ('lsd', 'None')),
        'default': 'holm'},
       ALPHA_LEVEL)},
+  'Normality': {
+    'category': 'Distribution fitting',
+    'input': 'sample',
+    'title': 'Tests of normality',
+    'function': 'octave_calc_normality',
+    'detail': 'Tests whether one sample could have come from a normal '
+              'distribution, by four tests at once.\n\n'
+              'Use it before a t-test or an ANOVA, which assume it, or '
+              'whenever the shape of the data is the question. The four '
+              'weigh different departures from normality, so they are all '
+              'run and all reported rather than made to be chosen '
+              'between.\n\n'
+              'Lilliefors and Jarque-Bera read their p-value from a table '
+              'and report its edge where the value falls outside; the '
+              'results say so when that happens.',
+    'layouts': SAMPLE,
+    'options': (ALPHA_LEVEL,)},
+  'Chi2gof': {
+    'category': 'Distribution fitting',
+    'input': 'sample',
+    'title': 'Goodness of fit',
+    'function': 'octave_calc_chi2gof',
+    'detail': 'Fits a distribution to one sample, counts the sample into '
+              'bins, and tests whether each bin holds as many values as the '
+              'fit expects.\n\n'
+              'Use it to judge a whole distribution rather than one feature '
+              'of it, and for counts and other data the normality tests do '
+              'not suit. It needs enough values that each bin expects a '
+              'few.\n\n'
+              'Bins that expect too little are joined to their neighbours, '
+              'so the bins counted may be fewer than the bins asked for, '
+              'and more bins does not always mean more of them counted.',
+    'layouts': SAMPLE,
+    'options': (DISTRIBUTION_FIT,
+                {'name': 'nbins', 'kind': 'number', 'label': 'Bins:',
+                 'hint': 'How many bins to count the sample into. 10 by '
+                         'default.',
+                 'accepts': 'a whole number of 2 or more',
+                 'minimum': 1.0, 'maximum': float ('inf'), 'whole': True,
+                 'default': '10'},
+                ALPHA_LEVEL)},
+  'Fitdist': {
+    'category': 'Distribution fitting',
+    'input': 'sample',
+    'title': 'Distribution fitting',
+    'function': 'octave_calc_fitdist',
+    'detail': 'Fits a distribution to one sample and reports each parameter '
+              'with a confidence interval.\n\n'
+              'Use it to put a shape and a scale on data you will go on to '
+              'model, simulate or compare against, or to read off the '
+              'quantiles of the fit rather than of the sample.\n\n'
+              'Goodness of fit says whether the fit is any good; this says '
+              'what the fit is. The curve, where asked for, gives the '
+              'density and the cumulative probability of the fitted '
+              'distribution, which is the only way to reach them once the '
+              'fit is a block of cells.',
+    'layouts': SAMPLE,
+    'options': (DISTRIBUTION_FIT,
+                {'name': 'curve', 'kind': 'choice', 'label': 'Curve:',
+                 'hint': 'Whether to write the density and the cumulative '
+                         'probability of the fit as well.',
+                 'choices': (('none', 'the fit alone'),
+                             ('sample', 'at each value of the sample'),
+                             ('grid', 'at a hundred even points')),
+                 'default': 'none'},
+                ALPHA_LEVEL)},
+  'Isoutlier': {
+    'category': 'Distribution fitting',
+    'input': 'sample',
+    'title': 'Outliers',
+    'function': 'octave_calc_isoutlier',
+    'detail': 'Finds the values of one sample that sit far enough from the '
+              'centre to be called outliers, and says where each one is.\n\n'
+              'Use it to check data before an analysis that a single wild '
+              'value would carry, and to find the cell that holds it. Each '
+              'outlier is reported with the row of the input range it came '
+              'from.\n\n'
+              'The median method is the safest default, since the median '
+              'and the median deviation are not themselves moved by the '
+              'values being looked for. The mean method is; Grubbs and GESD '
+              'assume the rest of the data is normal.',
+    'layouts': SAMPLE,
+    'options': (
+      {'name': 'method', 'kind': 'choice', 'label': 'Method:',
+       'hint': 'How far from what centre a value must sit.',
+       'choices': (('median', 'median deviations from the median'),
+                   ('mean', 'standard deviations from the mean'),
+                   ('quartiles', 'interquartile ranges from the quartiles'),
+                   ('grubbs', "Grubbs' test"),
+                   ('gesd', 'generalized extreme Studentized deviate')),
+       'default': 'median'},
+      {'name': 'factor', 'kind': 'number', 'label': 'Factor:',
+       'hint': "How far, in the units the method counts in.  0 leaves the "
+               "method its own.",
+       'accepts': 'a number of 0 or more', 'minimum': -1.0,
+       'maximum': float ('inf'), 'default': '0'})},
+  'Ttest1': {
+    'category': 'Group comparisons',
+    'input': 'sample',
+    'title': 'One-sample t-test',
+    'function': 'octave_calc_ttest1',
+    'detail': 'Compares the mean of one sample against a value you name.\n\n'
+              'Use it when there is one group and a figure it is meant to '
+              'meet: a target, a specification, a published mean, or zero '
+              'for differences you have worked out yourself. It answers '
+              'whether the sample mean differs from that value, and by how '
+              'much, with a confidence interval for the difference.\n\n'
+              'For two independent groups use the two-sample t-test, and for '
+              'two measurements of the same subjects the paired t-test. When '
+              'the data are skewed or few, the Wilcoxon signed-rank test is '
+              'safer.',
+    'layouts': SAMPLE,
+    'options': (
+      {'name': 'nullmean', 'kind': 'number', 'label': 'Compare with:',
+       'hint': 'The mean the sample is tested against. 0 by default.',
+       'accepts': 'a number', 'minimum': float ('-inf'),
+       'maximum': float ('inf'), 'default': '0'},
+      TAIL_MEANS_SAMPLE, ALPHA_LEVEL)},
   'FullFactorial': {
     'category': 'Experimental design',
     'title': 'Full factorial design',
