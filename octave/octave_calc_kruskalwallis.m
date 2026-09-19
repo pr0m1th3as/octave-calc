@@ -109,7 +109,7 @@ function C = octave_calc_kruskalwallis (DATA, BY, NAMES, CTYPE, ALPHA)
   C = [pad('Kruskal-Wallis Test'); pad(); ...
        pad('Groups', 'Count', 'Median', 'Mean rank', ...
            'Interquartile range'); groups; pad(); ...
-       [tbl, cell(rows (tbl), 2)]; pad(); pad(heading); ...
+       [octave_calc_dof(tbl), cell(rows (tbl), 2)]; pad(); pad(heading); ...
        pad('Group', 'Group', 'Lower bound', 'Mean rank difference', ...
            'Upper bound', 'Statistic', 'DoF', 'Adjusted p-value'); pairs];
 
@@ -139,7 +139,11 @@ endfunction
 %!test
 %! assert_equal (C(6,:), {'Column 3', 3, 8, 8, iqr([7; 8; 9]), [], [], []});
 %!test
-%! assert_equal (C(8:11,:), [tbl, cell(4, 2)]);
+%! assert_equal (C(9:11,:), [tbl(2:4,:), cell(3, 2)]);
+%!test
+%! ## The table's degrees of freedom are named as every other block names them
+%! assert_equal (C(8,1:6), {'Source', 'SS', 'DoF', 'MS', 'Chi-sq', ...
+%!                          'Prob>Chi-sq'});
 %!test
 %! assert_equal (C(13,1), {'Multiple comparisons (holm, alpha 0.05)'});
 %!test
@@ -190,7 +194,7 @@ endfunction
 %! R = octave_calc_kruskalwallis ([1, 4, 7, 2, 5, 8, 3, 6, 9; ...
 %!                                 10, 20, 30, 10, 20, 30, 10, 20, 30]', ...
 %!                                'labels');
-%! assert_equal (R(8:11,:), [tbl, cell(4, 2)]);
+%! assert_equal (R(9:11,:), [tbl(2:4,:), cell(3, 2)]);
 %!test
 %! R = octave_calc_kruskalwallis ([4, 2.5; 1, 1; 7, 30; 2, 1], 'labels');
 %! assert_equal (R(4:6,1:2), {'1', 2; '2.5', 1; '30', 1});

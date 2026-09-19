@@ -63,7 +63,8 @@ function [C, errmsg] = octave_calc_sampsizepwr (WANT, TESTTYPE, NULLVALUE, ...
     return;
   endif
   if (! (number (ALPHA) && ALPHA > 0 && ALPHA < 1))
-    errmsg = "the significance level must be a number greater than 0 and less than 1.";
+    errmsg = strcat ("the significance level must be a number greater", ...
+                     " than 0 and less than 1.");
     return;
   endif
   if (! strcmp (WANT, 'p1') && ! number (P1))

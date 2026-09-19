@@ -35,15 +35,32 @@ PACKAGE = 'statistics'
 # its group, in either order.
 BY = ('columns', 'rows', 'labels-data', 'data-labels')
 
-# What each way of grouping allows in the input range, ending a refusal.
-ALLOWED = {'columns': 'the input range may hold group names in its first row, '
-                      'then numbers and empty cells only.',
-           'rows': 'the input range may hold group names in its first column, '
-                   'then numbers and empty cells only.',
-           'labels-data': 'the values may be numbers or empty cells, and the '
-                          'group labels text or numbers.',
-           'data-labels': 'the values may be numbers or empty cells, and the '
-                          'group labels text or numbers.'}
+# What an analysis does with the cells it reads: 'range', two or more
+# independent groups in one of the four layouts; 'matched', one measurement
+# per column, or per row, taken on the same subjects, so that a row of the
+# range is one subject; 'factors', each value beside the two factors it was
+# measured under; or 'none', it reads no cells at all.
+INPUTS = ('range', 'matched', 'factors', 'none')
+
+# What a column or a row of the input range holds, by the kind of input.  The
+# dialog and every refusal say it in the user's words, since reading matched
+# measurements as independent groups, or the other way about, answers a
+# question the user did not ask and says nothing about it.
+NOUN = {'range': 'group', 'matched': 'measurement', 'factors': 'factor'}
+
+
+def allowed (by, kind = 'range'):
+  """What the input range may hold, read BY that layout for an analysis of
+  that KIND, ending a refusal."""
+  noun = NOUN.get (kind, NOUN['range'])
+  if (by == 'columns'):
+    return ('the input range may hold %s names in its first row, then '
+            'numbers and empty cells only.' % noun)
+  if (by == 'rows'):
+    return ('the input range may hold %s names in its first column, then '
+            'numbers and empty cells only.' % noun)
+  return ('the values may be numbers or empty cells, and the %s labels text '
+          'or numbers.' % noun)
 
 # The categories, in the order the dialog lists them, each with the sentence
 # shown under the category.
@@ -56,8 +73,10 @@ CATEGORIES = {
     'Fits a model that predicts one variable from others.',
   'Multivariate analyses':
     'Finds the structure in many variables at once.',
-  'Distributions':
+  'Distribution fitting':
     'Fits a distribution to a sample, and tests whether it fits.',
+  'Random numbers':
+    'Draws a sample from a distribution and the parameters you give it.',
   'Experimental design':
     'Plans a study before the data exist: how many observations are needed, '
     'and which combinations to run.'}
@@ -102,6 +121,43 @@ ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
                'hint': 'The chance of a false positive. 0.05 by default.',
                'accepts': 'a number greater than 0 and less than 1',
                'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
+
+# The layouts an analysis of two factors takes: the two factor columns
+# before the values, or after them.  A column or a row per level cannot say
+# which level of the other factor a value belongs to, so neither is offered.
+FACTORS = ('labels-data', 'data-labels')
+
+
+# The layouts an analysis of matched measurements takes: one per column, or
+# one per row.  Values beside their labels cannot say which subject a value
+# belongs to, so they are not offered.
+MATCHED = ('columns', 'rows')
+
+# The options the matched analyses share, in the order their functions take
+# them.  The first measurement is always the one the alternative is about.
+TAIL_MEANS = {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
+              'hint': 'What the test is prepared to find, the first '
+                      'measurement against the second.',
+              'choices': (('both', 'the means differ'),
+                          ('right', 'the first mean is greater'),
+                          ('left', 'the first mean is smaller')),
+              'default': 'both'}
+
+TAIL_MEDIANS = {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
+                'hint': 'What the test is prepared to find, the first '
+                        'measurement against the second.',
+                'choices': (('both', 'the medians differ'),
+                            ('right', 'the first median is greater'),
+                            ('left', 'the first median is smaller')),
+                'default': 'both'}
+
+METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
+                'hint': 'Exact enumeration, or the normal approximation. '
+                        'Chosen by the sample size unless set.',
+                'choices': (('auto', 'chosen by the sample size'),
+                            ('exact', 'exact'),
+                            ('approximate', 'approximate')),
+                'default': 'auto'}
 
 # Every analysis, by the command that runs it, in the order its category lists
 # them.  Adding one is this entry plus its Octave function, and nothing else:
@@ -182,6 +238,211 @@ ANALYSES = {
        'choices': (('equal', 'equal (assumed)'),
                    ('unequal', 'non-equal (Welch)')),
        'default': 'equal'})},
+  'Ttest2': {
+    'category': 'Group comparisons',
+    'input': 'range',
+    'title': 'Two-sample t-test',
+    'function': 'octave_calc_ttest2',
+    'detail': 'Compares the means of two independent groups, weighing the '
+              'difference between them against the spread within them.\n\n'
+              'Use it when the two groups are independent, the values are '
+              'measured on a scale, and each group is roughly normal. It '
+              'answers whether the means differ, and by how much, with a '
+              'confidence interval for the difference.\n\n'
+              'When the groups have unequal variances, choose Welch. When '
+              'the data are skewed or few, the Mann-Whitney U test is '
+              'safer. For three or more groups use one-way ANOVA, and for '
+              'two measurements of the same subjects the paired t-test.',
+    'layouts': BY,
+    'options': (
+      {'name': 'vartype', 'kind': 'choice', 'label': 'Variances:',
+       'hint': 'Welch does not assume the groups share a variance.',
+       'choices': (('equal', 'equal (assumed)'),
+                   ('unequal', 'non-equal (Welch)')),
+       'default': 'equal'},
+      {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
+       'hint': 'What the test is prepared to find, the first group against '
+               'the second.',
+       'choices': (('both', 'the means differ'),
+                   ('right', 'the first mean is greater'),
+                   ('left', 'the first mean is smaller')),
+       'default': 'both'},
+      {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
+       'hint': 'Sets the confidence interval. 0.05 by default.',
+       'accepts': 'a number greater than 0 and less than 1',
+       'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
+  'Ranksum': {
+    'category': 'Group comparisons',
+    'input': 'range',
+    'title': 'Mann-Whitney U test',
+    'function': 'octave_calc_ranksum',
+    'detail': 'Compares two independent groups by rank, without assuming '
+              'the values are normally distributed.\n\n'
+              'Use it when the two groups are independent, the values are '
+              'at least ordinal, and the data are skewed, heavy tailed, or '
+              'too few to judge. It answers whether one group tends to hold '
+              'the larger values.\n\n'
+              'For normally distributed values the two-sample t-test is '
+              'more powerful. For three or more groups use the '
+              'Kruskal-Wallis Test, and for two measurements of the same '
+              'subjects the Wilcoxon signed-rank test.',
+    'layouts': BY,
+    'options': (
+      {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
+       'hint': 'Exact enumeration, or the normal approximation. Chosen by '
+               'the sample sizes unless set.',
+       'choices': (('auto', 'chosen by the sample sizes'),
+                   ('exact', 'exact'), ('approximate', 'approximate')),
+       'default': 'auto'},
+      {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
+       'hint': 'What the test is prepared to find, the first group against '
+               'the second.',
+       'choices': (('both', 'the medians differ'),
+                   ('right', 'the first median is greater'),
+                   ('left', 'the first median is smaller')),
+       'default': 'both'},
+      {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
+       'hint': 'The chance of a false positive. 0.05 by default.',
+       'accepts': 'a number greater than 0 and less than 1',
+       'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
+  'VarTestN': {
+    'category': 'Group comparisons',
+    'input': 'range',
+    'title': 'Equal variances',
+    'function': 'octave_calc_vartestn',
+    'detail': 'Tests whether two or more groups are equally spread, which '
+              'the t-tests and ANOVA assume.\n\n'
+              'Use it to check that assumption before trusting one of '
+              'those, or when the spread is itself the question: two '
+              'machines may fill to the same average weight and differ in '
+              'how consistently they do it. Two groups also get the ratio '
+              'of their variances with a confidence interval.\n\n'
+              "Bartlett's test is the most powerful when every group is "
+              'normal, and the most easily misled when one is not. The '
+              'Levene and Brown-Forsythe tests weigh each value against its '
+              "group's mean or median instead, and hold up under skew and "
+              'outliers.',
+    'layouts': BY,
+    'options': (
+      {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
+       'hint': 'Bartlett assumes each group is normal; the rest do not.',
+       'choices': (('Bartlett', 'Bartlett'),
+                   ('LeveneQuadratic', 'Levene, squared deviations'),
+                   ('LeveneAbsolute', 'Levene, absolute deviations'),
+                   ('BrownForsythe', 'Brown-Forsythe'),
+                   ('OBrien', "O'Brien")),
+       'default': 'Bartlett'},
+      {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
+       'hint': 'Sets the confidence interval of the ratio. 0.05 by default.',
+       'accepts': 'a number greater than 0 and less than 1',
+       'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
+  'Anova2': {
+    'category': 'Group comparisons',
+    'input': 'factors',
+    'title': 'Two-way ANOVA',
+    'function': 'octave_calc_anova2',
+    'detail': 'Compares the means of groups formed by two factors at once, '
+              'and asks whether the effect of one depends on the level of '
+              'the other.\n\n'
+              'Use it when every value was measured under one level of each '
+              'factor: a yield under a fertiliser and a variety, a score '
+              'under a treatment and an age band. It answers three '
+              'questions, one for each factor and one for their interaction, '
+              'and the comparisons say which levels differ.\n\n'
+              'The interaction needs a combination measured more than once. '
+              'With one value per combination, take the two effects as '
+              'adding. For one factor use one-way ANOVA.',
+    'layouts': FACTORS,
+    'options': (
+      {'name': 'model', 'kind': 'choice', 'label': 'Model:',
+       'hint': 'Whether the effect of one factor may depend on the level of '
+               'the other.',
+       'choices': (('interaction', 'the two effects and their interaction'),
+                   ('linear', 'the two effects, taken to add')),
+       'default': 'interaction'},
+      {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
+       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
+                   ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
+                   ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
+                   ('lsd', 'None')),
+       'default': 'holm'},
+      ALPHA_LEVEL)},
+  'TtestPaired': {
+    'category': 'Group comparisons',
+    'input': 'matched',
+    'title': 'Paired t-test',
+    'function': 'octave_calc_ttestpaired',
+    'detail': 'Compares two measurements taken on the same subjects, by '
+              'testing whether their differences average to zero.\n\n'
+              'Use it when each row is one subject measured twice, before '
+              'and after, left and right, two methods on the same samples. '
+              'Pairing removes the differences between subjects, so it finds '
+              'a smaller effect than the two-sample test on the same '
+              'numbers.\n\n'
+              'For independent groups use the two-sample t-test. When the '
+              'differences are skewed or few, the Wilcoxon signed-rank test '
+              'is safer. For three or more measurements use the Friedman '
+              'test.',
+    'layouts': MATCHED,
+    'options': (TAIL_MEANS, ALPHA_LEVEL)},
+  'SignRank': {
+    'category': 'Group comparisons',
+    'input': 'matched',
+    'title': 'Wilcoxon signed-rank test',
+    'function': 'octave_calc_signrank',
+    'detail': 'Compares two measurements taken on the same subjects by the '
+              'rank of their differences, without assuming those differences '
+              'are normally distributed.\n\n'
+              'Use it when each row is one subject measured twice and the '
+              'differences are skewed, heavy tailed, or too few to judge. It '
+              'weighs how large each difference is as well as its '
+              'direction.\n\n'
+              'For normally distributed differences the paired t-test is '
+              'more powerful. Where only the direction of a difference can '
+              'be trusted, the sign test asks less of the data.',
+    'layouts': MATCHED,
+    'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
+  'SignTest': {
+    'category': 'Group comparisons',
+    'input': 'matched',
+    'title': 'Sign test',
+    'function': 'octave_calc_signtest',
+    'detail': 'Compares two measurements taken on the same subjects by '
+              'counting which way each difference goes, and nothing else.\n\n'
+              'Use it when the values are ordinal, or when a difference can '
+              'be called positive or negative but its size means little: a '
+              'rating, a ranking, a judgement. A subject whose two '
+              'measurements are equal takes no part.\n\n'
+              'It asks less of the data than any other paired test and finds '
+              'less in return. Where the size of a difference is meaningful, '
+              'the Wilcoxon signed-rank test is more powerful.',
+    'layouts': MATCHED,
+    'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
+  'Friedman': {
+    'category': 'Group comparisons',
+    'input': 'matched',
+    'title': 'Friedman test',
+    'function': 'octave_calc_friedman',
+    'detail': 'Compares three or more measurements taken on the same '
+              'subjects by ranking them within each subject.\n\n'
+              'Use it when each row is one subject measured under every '
+              'condition, and the values are at least ordinal. Each subject '
+              'ranks the conditions for itself, so differences between '
+              'subjects drop out. It answers whether any condition differs; '
+              'the pairwise comparisons say which.\n\n'
+              'For two measurements use the Wilcoxon signed-rank test. For '
+              'independent groups use the Kruskal-Wallis Test.',
+    'layouts': MATCHED,
+    'options': (
+      {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
+       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
+                   ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
+                   ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
+                   ('lsd', 'None')),
+       'default': 'holm'},
+      ALPHA_LEVEL)},
   'FullFactorial': {
     'category': 'Experimental design',
     'title': 'Full factorial design',
@@ -387,10 +648,11 @@ def header_only ():
   return ValueError ('the input range holds only its header.')
 
 
-def group_args (rows, by, column, row):
+def group_args (rows, by, column, row, kind = 'range'):
   """The arguments for one group per column or, when BY is 'rows', per row,
   from ROWS whose top-left cell is at COLUMN and ROW.  A first row, or first
-  column, holding a name is the header, passed as the groups' names."""
+  column, holding a name is the header, passed as the groups' names.  KIND is
+  what those columns or rows hold, which only the refusals say."""
   if (by == 'rows'):
     header = [values[0] for values in rows]
     body = [values[1:] for values in rows]
@@ -409,7 +671,7 @@ def group_args (rows, by, column, row):
     names = octave_core.range_arg (
       [[octave_core.plain_cell (value) for value in header]])
   return [octave_core.range_arg (
-            [[number_cell (value, left + c, top + r, ALLOWED[by])
+            [[number_cell (value, left + c, top + r, allowed (by, kind))
               for c, value in enumerate (values)]
              for r, values in enumerate (body)]),
           {'type': 'string', 'value': by}, names]
@@ -431,7 +693,7 @@ def labels_args (rows, by, column, row):
   for r in range (start, len (rows)):
     label = rows[r][at]
     number = number_cell (rows[r][1 - at], column + 1 - at, row + r,
-                          ALLOWED[by])
+                          allowed (by, 'range'))
     if (number['kind'] == 'number' and label == ''):
       raise ValueError ('%s holds a value with no group label in %s.'
                         % (octave_core.cell_name (column + 1 - at, row + r),
@@ -441,15 +703,52 @@ def labels_args (rows, by, column, row):
           NO_NAMES]
 
 
-def analysis_args (rows, by, column, row):
+def factor_args (rows, by, column, row):
+  """The arguments for each value beside the two factors it was measured
+  under, from ROWS whose top-left cell is at COLUMN and ROW; BY says whether
+  the two factor columns come before the values or after them.  The values go
+  first, then the two factors.  A first row whose value is a name is a header
+  and names the factors."""
+  if (len (rows[0]) != 3):
+    raise ValueError ('with two factors the input range must be three columns '
+                      'wide: the values and the two factors of each.')
+  at = 0 if by == 'labels-data' else 1
+  value = 2 if at == 0 else 0
+  first, second = (0, 1) if at == 0 else (1, 2)
+  start = 1 if is_name (rows[0][value]) else 0
+  if (start == len (rows)):
+    raise header_only ()
+  names = NO_NAMES
+  if (start):
+    names = octave_core.range_arg (
+      [[octave_core.plain_cell (rows[0][first]),
+        octave_core.plain_cell (rows[0][second])]])
+  cells = []
+  for r in range (start, len (rows)):
+    number = number_cell (rows[r][value], column + value, row + r,
+                          allowed (by, 'factors'))
+    for which in (first, second):
+      if (number['kind'] == 'number' and rows[r][which] == ''):
+        raise ValueError ('%s holds a value with no factor in %s.'
+                          % (octave_core.cell_name (column + value, row + r),
+                             octave_core.cell_name (column + which, row + r)))
+    cells.append ([number, octave_core.plain_cell (rows[r][first]),
+                   octave_core.plain_cell (rows[r][second])])
+  return [octave_core.range_arg (cells), {'type': 'string', 'value': 'labels'},
+          names]
+
+
+def analysis_args (rows, by, column, row, kind = 'range'):
   """The octave_call arguments of an analysis function: the input range ROWS,
-  whose top-left cell is at COLUMN and ROW, and how BY says it holds the
-  groups.  Raises ValueError."""
+  whose top-left cell is at COLUMN and ROW, and how BY says it is laid out,
+  for an analysis of that KIND.  Raises ValueError."""
   if (by not in BY):
     raise ValueError ('grouped by must be "columns", "rows", "labels-data" or '
                       '"data-labels".')
+  if (kind == 'factors'):
+    return factor_args (rows, by, column, row)
   if (by in ('columns', 'rows')):
-    return group_args (rows, by, column, row)
+    return group_args (rows, by, column, row, kind)
   return labels_args (rows, by, column, row)
 
 

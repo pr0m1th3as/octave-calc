@@ -46,6 +46,15 @@ SDK_BIN = '/usr/lib/libreoffice/sdk/bin'
 OFFICE_TYPES = ('/usr/lib/libreoffice/program/types.rdb',
                 '/usr/lib/libreoffice/program/types/offapi.rdb')
 
+# Every analysis function, and the helpers they share, which must be listed
+# here or the menu offers an analysis the sandbox cannot run.
+ANALYSES = ('anova1', 'anova2', 'detectable', 'ff2n', 'friedman', 'fullfact',
+            'kruskalwallis', 'ranksum', 'sampsize', 'signrank', 'signtest',
+            'testpower', 'ttest2', 'ttestpaired', 'vartestn')
+
+HELPERS = ('alpha', 'dof', 'dropped', 'factors', 'groups', 'matched', 'names',
+           'pairs', 'sampsizepwr', 'tail')
+
 # Published path inside the package, against the source under the repository.
 CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),
            'addin.py': os.path.join (HERE, 'python', 'addin.py'),
@@ -53,26 +62,6 @@ CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),
            'octave_settings.py': os.path.join (HERE, 'python',
                                                'octave_settings.py'),
            'octave_stats.py': os.path.join (HERE, 'python', 'octave_stats.py'),
-           'octave/octave_calc_kruskalwallis.m': os.path.join (
-             HERE, 'octave', 'octave_calc_kruskalwallis.m'),
-           'octave/octave_calc_anova1.m': os.path.join (
-             HERE, 'octave', 'octave_calc_anova1.m'),
-           'octave/octave_calc_fullfact.m': os.path.join (
-             HERE, 'octave', 'octave_calc_fullfact.m'),
-           'octave/octave_calc_ff2n.m': os.path.join (
-             HERE, 'octave', 'octave_calc_ff2n.m'),
-           'octave/octave_calc_sampsize.m': os.path.join (
-             HERE, 'octave', 'octave_calc_sampsize.m'),
-           'octave/octave_calc_testpower.m': os.path.join (
-             HERE, 'octave', 'octave_calc_testpower.m'),
-           'octave/octave_calc_detectable.m': os.path.join (
-             HERE, 'octave', 'octave_calc_detectable.m'),
-           'octave/private/octave_calc_sampsizepwr.m': os.path.join (
-             HERE, 'octave', 'private', 'octave_calc_sampsizepwr.m'),
-           'octave/private/octave_calc_groups.m': os.path.join (
-             HERE, 'octave', 'private', 'octave_calc_groups.m'),
-           'octave/private/octave_calc_pairs.m': os.path.join (
-             HERE, 'octave', 'private', 'octave_calc_pairs.m'),
            'statistics_menu.py': os.path.join (HERE, 'python',
                                                'statistics_menu.py'),
            'OctaveCalc.xcs': os.path.join (HERE, 'oxt', 'OctaveCalc.xcs'),
@@ -85,6 +74,16 @@ CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),
            'description.xml': os.path.join (HERE, 'oxt', 'description.xml'),
            'META-INF/manifest.xml': os.path.join (HERE, 'oxt', 'META-INF',
                                                   'manifest.xml')}
+
+CONTENT.update (dict (
+  ('octave/octave_calc_%s.m' % name,
+   os.path.join (HERE, 'octave', 'octave_calc_%s.m' % name))
+  for name in ANALYSES))
+
+CONTENT.update (dict (
+  ('octave/private/octave_calc_%s.m' % name,
+   os.path.join (HERE, 'octave', 'private', 'octave_calc_%s.m' % name))
+  for name in HELPERS))
 
 
 def office_running ():

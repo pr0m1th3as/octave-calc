@@ -104,7 +104,7 @@ function C = octave_calc_anova1 (DATA, BY, NAMES, CTYPE, ALPHA, VARTYPE)
   C = [pad(title); pad(); ...
        pad('Groups', 'Count', 'Mean', 'Standard deviation', ...
            'Standard error'); groups; pad(); ...
-       [tbl, cell(rows (tbl), 2)]; pad(); pad(heading); ...
+       [octave_calc_dof(tbl), cell(rows (tbl), 2)]; pad(); pad(heading); ...
        pad('Group', 'Group', 'Lower bound', 'Mean difference', ...
            'Upper bound', 'Statistic', 'DoF', 'Adjusted p-value'); pairs];
 
@@ -135,7 +135,10 @@ endfunction
 %!test
 %! assert_equal (C(4,4:5), {std([1; 2; 3]), std([1; 2; 3]) / sqrt(3)});
 %!test
-%! assert_equal (C(8:11,:), [tbl, cell(4, 2)]);
+%! assert_equal (C(9:11,:), [tbl(2:4,:), cell(3, 2)]);
+%!test
+%! ## The table's degrees of freedom are named as every other block names them
+%! assert_equal (C(8,1:6), {'Source', 'SS', 'DoF', 'MS', 'F', 'Prob>F'});
 %!test
 %! assert_equal (C(13,1), {'Multiple comparisons (holm, alpha 0.05)'});
 %!test
@@ -170,7 +173,8 @@ endfunction
 %!test
 %! R = octave_calc_anova1 ([1, 4, 7; 2, 5, 9; 3, 6, 8], 'columns', [], ...
 %!                          'holm', 0.05, 'unequal');
-%! assert_equal (R(8,1:4), {'Source', 'F', 'df', 'dfe'});
+%! assert_equal (R(8,1:4), {'Source', 'F', 'Numerator DoF', ...
+%!                           'Denominator DoF'});
 %!test
 %! R = octave_calc_anova1 ([1, 4, 7; 2, 5, 9; 3, 6, 8], 'columns', [], ...
 %!                          'holm', 0.05, 'unequal');

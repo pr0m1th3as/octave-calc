@@ -16,7 +16,8 @@
 ## this program; if not, see <http://www.gnu.org/licenses/>.
 
 ## -*- texinfo -*-
-## @deftypefn {octave-calc} {[@var{heading}, @var{pairs}, @var{errmsg}] =} octave_calc_pairs (@var{STATS}, @var{LABELS}, @var{CTYPE}, @var{ALPHA})
+## @deftypefn  {octave-calc} {[@var{heading}, @var{pairs}, @var{errmsg}] =} octave_calc_pairs (@var{STATS}, @var{LABELS}, @var{CTYPE}, @var{ALPHA})
+## @deftypefnx {octave-calc} {[@var{heading}, @var{pairs}, @var{errmsg}] =} octave_calc_pairs (@var{STATS}, @var{LABELS}, @var{CTYPE}, @var{ALPHA}, @var{DIM})
 ##
 ## The pairwise comparisons that follow a test, for the analyses of Data >
 ## Statistics with GNU Octave.
@@ -37,6 +38,9 @@
 ## the text @qcode{'Inf'}, which reads back as a number where an empty cell
 ## would read back as @code{NaN}.
 ##
+## @var{DIM}, where it is given, is which factor of a two-factor analysis to
+## compare the levels of, the other being averaged over.
+##
 ## @var{errmsg} is the body of an error message when @var{CTYPE} or
 ## @var{ALPHA} is not one of those, and the caller raises it under its own
 ## name; @var{pairs} is then empty.
@@ -44,15 +48,18 @@
 ## @end deftypefn
 
 function [heading, pairs, errmsg] = octave_calc_pairs (STATS, LABELS, ...
-                                                       CTYPE, ALPHA)
+                                                       CTYPE, ALPHA, DIM)
 
   heading = "";
   pairs = cell (0, 8);
   errmsg = "";
 
-  if (nargin != 4)
+  if (nargin < 4 || nargin > 5)
     errmsg = "invalid number of input arguments.";
     return;
+  endif
+  if (nargin < 5)
+    DIM = [];
   endif
   ctypes = {'bonferroni', 'scheffe', 'mvt', 'holm', 'hochberg', 'fdr', 'lsd'};
   if (! (ischar (CTYPE) && any (strcmp (CTYPE, ctypes))))
@@ -66,7 +73,11 @@ function [heading, pairs, errmsg] = octave_calc_pairs (STATS, LABELS, ...
     return;
   endif
 
-  c = multcompare (STATS, 'ctype', CTYPE, 'alpha', ALPHA, 'display', 'off');
+  args = {'ctype', CTYPE, 'alpha', ALPHA, 'display', 'off'};
+  if (! isempty (DIM))
+    args = [args, {'dim', DIM}];
+  endif
+  c = multcompare (STATS, args{:});
   heading = sprintf ("Multiple comparisons (%s, alpha %g)", CTYPE, ALPHA);
   pairs = [LABELS(c(:,1)), LABELS(c(:,2)), num2cell(c(:,[3, 4, 5, 7, 8, 6]))];
 

@@ -94,7 +94,7 @@ function [x, group, labels, errmsg] = samples (DATA, BY, NAMES)
   labels = arrayfun (@(ii) sprintf ("%s %d", stem, ii), (1:k)', ...
                      "UniformOutput", false);
   if (! isempty (NAMES))
-    [names, errmsg] = texts (NAMES, "NAMES");
+    [names, errmsg] = octave_calc_names (NAMES, "NAMES");
     if (! isempty (errmsg))
       return;
     endif
@@ -151,7 +151,8 @@ function [x, group, labels, errmsg] = labelled (DATA)
     names = DATA(keep,2);
     missing = isnan (names);
   else
-    [names, errmsg] = texts (DATA(keep,2), "the group labels in DATA");
+    [names, errmsg] = octave_calc_names (DATA(keep,2), ...
+                                        "the group labels in DATA");
     if (! isempty (errmsg))
       x = [];
       return;
@@ -167,31 +168,4 @@ function [x, group, labels, errmsg] = labelled (DATA)
   if (! isempty (x))
     [group, labels] = grp2idx (names);
   endif
-endfunction
-
-## Names as a column of text, from a numeric vector or a cell array of text,
-## numbers and empty values; a missing name is empty text
-function [names, errmsg] = texts (V, what)
-  names = cell (0, 1);
-  errmsg = "";
-  if (isnumeric (V) && isreal (V))
-    V = num2cell (V);
-  endif
-  isname = @(v) (isnumeric (v) && isreal (v) && isscalar (v)) || isempty (v) ...
-                || (ischar (v) && rows (v) <= 1);
-  if (! (iscell (V) && all (cellfun (isname, V(:)))))
-    errmsg = sprintf ("%s must be text or numbers.", what);
-    return;
-  endif
-  names = cell (numel (V), 1);
-  for ii = 1:numel (V)
-    v = V{ii};
-    if (ischar (v))
-      names{ii} = v;
-    elseif (! (isempty (v) || isnan (v)))
-      names{ii} = num2str (v);
-    else
-      names{ii} = '';
-    endif
-  endfor
 endfunction

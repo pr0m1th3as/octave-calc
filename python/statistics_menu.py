@@ -78,16 +78,49 @@ RADIO_NAMES = [radio[0] for radio in RADIOS]
 # is open.  An analysis may declare no more options than this.
 OPTION_SLOTS = 6
 
-# What each layout means, on hovering over its button.
+# What each layout means, on hovering over its button, by the kind of input
+# the analysis reads.
 LAYOUT_HELP = {
-  'columns': 'One group per column.  A first row of text is read as the '
-             'group names.',
-  'rows': 'One group per row.  A first column of text is read as the group '
-          'names.',
-  'labels-data': 'Two columns: the group of each value, then the values.  A '
-                 'first row of text is a header and is ignored.',
-  'data-labels': 'Two columns: the values, then the group of each.  A first '
-                 'row of text is a header and is ignored.'}
+  'range': {
+    'columns': 'One group per column.  A first row of text is read as the '
+               'group names.',
+    'rows': 'One group per row.  A first column of text is read as the group '
+            'names.',
+    'labels-data': 'Two columns: the group of each value, then the values.  A '
+                   'first row of text is a header and is ignored.',
+    'data-labels': 'Two columns: the values, then the group of each.  A first '
+                   'row of text is a header and is ignored.'},
+  'matched': {
+    'columns': 'One measurement per column, a row per subject.  A first row '
+               'of text is read as the measurement names.',
+    'rows': 'One measurement per row, a column per subject.  A first column '
+            'of text is read as the measurement names.',
+    'labels-data': '',
+    'data-labels': ''},
+  'factors': {
+    'columns': '',
+    'rows': '',
+    'labels-data': 'Three columns: the two factors of each value, then the '
+                   'values.  A first row of text names the two factors.',
+    'data-labels': 'Three columns: the values, then the two factors of each.  '
+                   'A first row of text names the two factors.'}}
+
+# What the layout chooser is called and what it says under itself, by the kind
+# of input, since matched measurements are not groups and reading one as the
+# other answers a different question in silence.
+BY_LABEL = {'range': 'Grouped by:', 'matched': 'Measurements in:',
+            'factors': 'Factors in:'}
+
+BY_HINT = {
+  'range': 'Columns or Rows: one group each, whose first cell may hold its '
+           'name.  Labels: two columns, the values and the group of each '
+           'value.',
+  'matched': 'Columns or Rows: one measurement each, taken on the same '
+             'subjects in the same order, whose first cell may hold its '
+             'name.  A subject missing any measurement is left out whole.',
+  'factors': 'Three columns: the values and the two factors each value was '
+             'measured under, the factors before the values or after them.  '
+             'A first row of text names the two factors.'}
 
 # One analysis at a time.  A second would fight the first for the sheet.
 _busy = threading.Lock ()
@@ -313,11 +346,10 @@ class Analysis:
     # One group of radio buttons, since their tab indices follow each other
     for (name, x, y, label), choice in zip (RADIOS, octave_stats.BY):
       add ('RadioButton', name, x, y, 95, 12, Label = label,
-           State = int (answers['by'] == choice), HelpText = LAYOUT_HELP[choice])
+           State = int (answers['by'] == choice),
+           HelpText = LAYOUT_HELP['range'][choice])
     add ('FixedText', 'by_hint', 206, 132, 208, 20, MultiLine = True,
-         Label = 'Columns or Rows: one group each, whose first cell may hold '
-                 'its name.  Labels: two columns, the values and the group of '
-                 'each value.')
+         Label = BY_HINT['range'])
     add ('FixedText', 'options_label', 206, 156, 80, 10, Label = 'Options:')
     for slot in range (OPTION_SLOTS):
       top = 168 + 24 * slot
@@ -378,10 +410,16 @@ class Analysis:
       part ('detail').getModel ().Label = (
         analysis['detail'] if analysis else 'No analyses here yet.')
       # An analysis that reads no cells hides the range and the layouts
-      reads = bool (analysis) and analysis['input'] == 'range'
+      kind = analysis['input'] if analysis else 'none'
+      reads = kind != 'none' and bool (analysis)
       for name in ('input_label', 'input', 'input_pick', 'input_hint',
                    'by_label', 'by_hint') + tuple (RADIO_NAMES):
         part (name).setVisible (reads)
+      if (reads):
+        part ('by_label').getModel ().Label = BY_LABEL[kind]
+        part ('by_hint').getModel ().Label = BY_HINT[kind]
+        for name, choice in zip (RADIO_NAMES, octave_stats.BY):
+          part (name).getModel ().HelpText = LAYOUT_HELP[kind][choice]
       held = None
       for name, choice in zip (RADIO_NAMES, octave_stats.BY):
         offered = bool (analysis) and choice in analysis['layouts']
@@ -504,19 +542,18 @@ class Analysis:
     try:
       corner = self.resolve (answers['output'], 'results range')
       args = octave_stats.option_args (self.command, answers['options'])
-      if (analysis['input'] == 'range'):
+      if (analysis['input'] != 'none'):
         source = self.resolve (answers['input'], 'input range')
         where = source.getRangeAddress ()
         errors = source.queryFormulaCells (RESULT_ERROR).getRangeAddresses ()
         if (errors):
-          allowed = octave_stats.ALLOWED.get (by,
-                                              octave_stats.ALLOWED['columns'])
           raise ValueError ('%s holds an error; %s'
                             % (octave_core.cell_name (errors[0].StartColumn,
                                                       errors[0].StartRow),
-                               allowed))
+                               octave_stats.allowed (by, analysis['input'])))
         args = (octave_stats.analysis_args (source.getDataArray (), by,
-                                            where.StartColumn, where.StartRow)
+                                            where.StartColumn, where.StartRow,
+                                            analysis['input'])
                 + args)
     except ValueError as err:
       self.refuse (str (err), answers, interactive)
