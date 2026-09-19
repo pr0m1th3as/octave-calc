@@ -541,6 +541,26 @@ class Analysis:
       raise ValueError ('the %s "%s" is not a range in this document.'
                         % (what, text))
 
+  def sized (self, answers, corner):
+    """ANSWERS with the size options of an analysis that takes its size from
+    the results range replaced by the extent of CORNER.  A single cell leaves
+    them as the dialog holds them, so that one cell and a size of 1 by 1 mean
+    the same thing.  The block written is taller than the numbers by the
+    lines above them, which start at the corner either way."""
+    named = octave_stats.ANALYSES[self.command].get ('sized')
+    if (not named):
+      return answers
+    at = corner.getRangeAddress ()
+    height = at.EndRow - at.StartRow + 1
+    width = at.EndColumn - at.StartColumn + 1
+    if (height * width == 1):
+      return answers
+    answers = dict (answers)
+    answers['options'] = dict (answers['options'])
+    answers['options'][named[0]] = str (height)
+    answers['options'][named[1]] = str (width)
+    return answers
+
   def launch (self, answers, interactive):
     """Check the answers, then run the analysis on a worker thread."""
     self.command = answers['command']
@@ -550,6 +570,7 @@ class Analysis:
     where = None
     try:
       corner = self.resolve (answers['output'], 'results range')
+      answers = self.sized (answers, corner)
       args = octave_stats.option_args (self.command, answers['options'])
       if (analysis['input'] != 'none'):
         source = self.resolve (answers['input'], 'input range')

@@ -245,9 +245,12 @@ class Registry (unittest.TestCase):
 
   def test_every_analysis_is_complete (self):
     for command, analysis in octave_stats.ANALYSES.items ():
-      self.assertEqual (sorted (analysis),
+      self.assertEqual (sorted (set (analysis) - {'sized'}),
                         ['category', 'detail', 'function', 'input', 'layouts',
                          'options', 'title'], command)
+      for name in analysis.get ('sized', ()):
+        self.assertIn (name, [option['name']
+                              for option in analysis['options']], command)
       self.assertIn (analysis['input'], octave_stats.INPUTS, command)
       self.assertEqual (analysis['input'] == 'none',
                         analysis['layouts'] == (), command)
@@ -311,8 +314,12 @@ class Registry (unittest.TestCase):
     self.assertEqual ([arg['value'] for arg in args],
                       ['t', 5.0, 2.0, 6.0, 0.9, 0.05])
 
+  def test_analyses_of_random_numbers (self):
+    self.assertEqual (octave_stats.analyses_of ('Random numbers'),
+                      ('RandomNumbers',))
+
   def test_analyses_of_empty_category (self):
-    self.assertEqual (octave_stats.analyses_of ('Random numbers'), ())
+    self.assertEqual (octave_stats.analyses_of ('Association tests'), ())
 
   def test_first_analysis (self):
     self.assertEqual (octave_stats.first_analysis (), 'KruskalWallis')
@@ -567,8 +574,10 @@ class AnalysesInOctave (unittest.TestCase):
 
   def run_analysis (self, rows, by, command = 'KruskalWallis', options = {}):
     analysis = octave_stats.ANALYSES[command]
-    args = (octave_stats.analysis_args (rows, by, 0, 0, analysis['input'])
-            + octave_stats.option_args (command, options))
+    args = octave_stats.option_args (command, options)
+    if (analysis['input'] != 'none'):
+      args = (octave_stats.analysis_args (rows, by, 0, 0, analysis['input'])
+              + args)
     return octave_stats.results (self.runner.call (analysis['function'], args))
 
   def titled (self, command):
@@ -774,6 +783,30 @@ class AnalysesInOctave (unittest.TestCase):
     listed = self.runner.call ('fitdist', [])
     named = tuple (line[0] for line in octave_core.output_rows (listed[0]))
     self.assertEqual (named, octave_stats.FITTED)
+
+  def test_random_numbers_reach_cells (self):
+    table = self.run_analysis ((), 'columns', 'RandomNumbers',
+                               {'params': '5 2', 'nrows': '3', 'ncols': '4',
+                                'seed': '7'})
+    self.assertEqual (table[0][0], self.titled ('RandomNumbers'))
+    self.assertEqual ([line[0] for line in table[2:7]],
+                      ['Distribution', 'mu', 'sigma', 'Size', 'Seed'])
+    self.assertEqual (len (table), 11)
+
+  def test_a_seed_that_was_not_given_is_still_written (self):
+    table = self.run_analysis ((), 'columns', 'RandomNumbers',
+                               {'params': '5 2', 'nrows': '2', 'ncols': '2'})
+    self.assertEqual (table[6][0], 'Seed')
+    self.assertTrue (isinstance (table[6][1], float))
+
+  def test_the_drawn_distributions_are_the_ones_makedist_takes (self):
+    """Every distribution the dialog offers must be one makedist builds
+    from a number per parameter; the three it cannot are left out."""
+    listed = self.runner.call ('makedist', [])
+    named = set (line[0] for line in octave_core.output_rows (listed[0]))
+    offered = set (name for name, unused in octave_stats.DRAWN)
+    self.assertEqual (named - offered,
+                      {'Kernel', 'Multinomial', 'PiecewiseLinear'})
 
   def test_refusal_names_no_function (self):
     with self.assertRaises (RuntimeError) as raised:

@@ -123,6 +123,40 @@ ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
                'accepts': 'a number greater than 0 and less than 1',
                'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
 
+# Every distribution makedist takes whose parameters are all single numbers,
+# with those parameters named in the label the user reads, so that a typed
+# list needs no order remembered and the dialog needs no row per parameter.
+# Kernel is not parametric, and Multinomial and PiecewiseLinear take vectors,
+# so none of the three can be given a number per parameter; a test against
+# the live server holds this list to the ones that can.
+DRAWN = (('Beta', 'Beta (a, b)'),
+         ('Binomial', 'Binomial (N, p)'),
+         ('BirnbaumSaunders', 'BirnbaumSaunders (beta, gamma)'),
+         ('Burr', 'Burr (alpha, c, k)'),
+         ('Exponential', 'Exponential (mu)'),
+         ('ExtremeValue', 'ExtremeValue (mu, sigma)'),
+         ('Gamma', 'Gamma (a, b)'),
+         ('GeneralizedExtremeValue',
+          'GeneralizedExtremeValue (k, sigma, mu)'),
+         ('GeneralizedPareto', 'GeneralizedPareto (k, sigma, theta)'),
+         ('HalfNormal', 'HalfNormal (mu, sigma)'),
+         ('InverseGaussian', 'InverseGaussian (mu, lambda)'),
+         ('Logistic', 'Logistic (mu, sigma)'),
+         ('Loglogistic', 'Loglogistic (mu, sigma)'),
+         ('Lognormal', 'Lognormal (mu, sigma)'),
+         ('Loguniform', 'Loguniform (Lower, Upper)'),
+         ('Nakagami', 'Nakagami (mu, omega)'),
+         ('NegativeBinomial', 'NegativeBinomial (R, P)'),
+         ('Normal', 'Normal (mu, sigma)'),
+         ('Poisson', 'Poisson (lambda)'),
+         ('Rayleigh', 'Rayleigh (B)'),
+         ('Rician', 'Rician (s, sigma)'),
+         ('Stable', 'Stable (alpha, beta, gam, delta)'),
+         ('tLocationScale', 'tLocationScale (mu, sigma, nu)'),
+         ('Triangular', 'Triangular (A, B, C)'),
+         ('Uniform', 'Uniform (Lower, Upper)'),
+         ('Weibull', 'Weibull (A, B)'))
+
 # The layouts an analysis of one sample takes: a column of values, or a row.
 SAMPLE = ('columns', 'rows')
 
@@ -199,6 +233,8 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #             'none', it takes its options alone and reads no cells
 #   layouts   the ways it takes its input range, from BY, or () when it reads
 #             no cells
+#   sized     where an analysis takes its size from the results range, the
+#             two options that range replaces, rows first; absent otherwise
 #   options   what the user chooses besides the ranges, passed to the function
 #             after the range, the layout and the names, in declared order.
 #             Each carries 'name', 'label', 'hint', 'default' and a 'kind':
@@ -590,6 +626,51 @@ ANALYSES = {
        'accepts': 'a number', 'minimum': float ('-inf'),
        'maximum': float ('inf'), 'default': '0'},
       TAIL_MEANS_SAMPLE, ALPHA_LEVEL)},
+  'RandomNumbers': {
+    'category': 'Random numbers',
+    'input': 'none',
+    'title': 'Random numbers',
+    'function': 'octave_calc_random',
+    'detail': 'Draws a block of values from a distribution and the '
+              'parameters you give it.\n\n'
+              'Use it to try an analysis on data of a shape you know, to '
+              'judge how much a result could have been chance, or to build '
+              'a teaching example. The numbers are written once and do not '
+              'change afterwards, so a sheet keeps what it was built '
+              'from.\n\n'
+              'Each distribution names its parameters in the list, in the '
+              'order they are typed. The seed is written above the numbers '
+              'whether you gave one or not, so any block can be drawn '
+              'again.',
+    'layouts': (),
+    'sized': ('nrows', 'ncols'),
+    'options': (
+      {'name': 'distname', 'kind': 'choice', 'label': 'Distribution:',
+       'hint': 'The distribution to draw from.  Its parameters are named in '
+               'the list, in the order they are typed below.',
+       'choices': DRAWN, 'default': 'Normal'},
+      {'name': 'params', 'kind': 'numbers', 'label': 'Parameters:',
+       'hint': 'One number for each parameter of the distribution, in the '
+               'order its name gives them.',
+       'accepts': 'a number for each parameter of the distribution',
+       'minimum': float ('-inf'), 'maximum': float ('inf'),
+       'default': '0 1'},
+      {'name': 'nrows', 'kind': 'number', 'label': 'Rows:',
+       'hint': 'How many rows to draw.  A results range of more than one '
+               'cell is used instead.',
+       'accepts': 'a whole number of 1 or more', 'minimum': 0.0,
+       'maximum': float ('inf'), 'whole': True, 'default': '10'},
+      {'name': 'ncols', 'kind': 'number', 'label': 'Columns:',
+       'hint': 'How many columns to draw.  A results range of more than one '
+               'cell is used instead.',
+       'accepts': 'a whole number of 1 or more', 'minimum': 0.0,
+       'maximum': float ('inf'), 'whole': True, 'default': '1'},
+      {'name': 'seed', 'kind': 'numbers', 'label': 'Seed:',
+       'hint': 'Leave it empty for a seed chosen at the time, which is '
+               'written above the numbers either way.',
+       'accepts': 'a whole number of 0 or more, or nothing at all',
+       'minimum': -1.0, 'maximum': float ('inf'), 'whole': True,
+       'optional': True, 'default': ''})},
   'FullFactorial': {
     'category': 'Experimental design',
     'title': 'Full factorial design',
@@ -725,6 +806,8 @@ def option_numbers (option, value):
   else:
     words = str (value).replace (',', ' ').replace (';', ' ').split ()
   if (not words or not words[0]):
+    if (option.get ('optional')):
+      return []
     raise refusal
   numbers = []
   for word in words:
@@ -753,9 +836,12 @@ def option_args (command, values):
       args.append ({'type': 'number', 'value': option_number (option, value)})
       continue
     if (option['kind'] == 'numbers'):
+      numbers = option_numbers (option, value)
+      if (not numbers):
+        args.append (NOTHING)
+        continue
       args.append (octave_core.range_arg (
-        [[{'kind': 'number', 'value': number}
-          for number in option_numbers (option, value)]]))
+        [[{'kind': 'number', 'value': number} for number in numbers]]))
       continue
     if (value not in [choice for choice, unused in option['choices']]):
       raise ValueError ('%s is not a value of "%s".' % (value, option['name']))
@@ -767,6 +853,11 @@ def option_args (command, values):
 # so that the options an analysis declares follow at fixed positions.  This
 # stands for no names at all: empty text, since a range must hold a cell.
 NO_NAMES = {'type': 'string', 'value': ''}
+
+# What an option the user left empty reaches Octave as, where the option says
+# it may be left empty.  A range must hold a cell, so this is empty text, and
+# the analysis reads it as nothing given.
+NOTHING = {'type': 'string', 'value': ''}
 
 
 def is_name (value):

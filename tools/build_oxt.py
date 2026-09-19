@@ -50,7 +50,7 @@ OFFICE_TYPES = ('/usr/lib/libreoffice/program/types.rdb',
 # here or the menu offers an analysis the sandbox cannot run.
 ANALYSES = ('anova1', 'anova2', 'chi2gof', 'detectable', 'ff2n', 'fitdist',
             'friedman', 'fullfact', 'isoutlier', 'kruskalwallis',
-            'normality', 'ranksum', 'sampsize', 'signrank', 'signtest',
+            'normality', 'random', 'ranksum', 'sampsize', 'signrank', 'signtest',
             'testpower', 'ttest1', 'ttest2', 'ttestpaired', 'vartestn')
 
 HELPERS = ('alpha', 'dof', 'dropped', 'factors', 'groups', 'matched', 'names',
