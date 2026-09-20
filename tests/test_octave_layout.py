@@ -180,6 +180,53 @@ class Hints (unittest.TestCase):
                    self.p_value ('Ranksum')['help'])
 
 
+class Lists (unittest.TestCase):
+  """A list is drawn the width its own entry gives it, beside the choices
+  the entry lists, and a field's width where it gives none."""
+
+  def listed (self, command, name):
+    laid = octave_layout.plan (command)
+    for slot, option in enumerate (octave_stats.slotted (command)):
+      if (option['name'] == name):
+        return (laid['option%d_%s' % (slot, 'list' if option.get ('rows')
+                                      else 'box')],
+                laid['option%d_label' % slot], option)
+    raise KeyError (name)
+
+  def test_a_list_is_drawn_the_width_its_entry_gives_it (self):
+    for command in octave_stats.ANALYSES:
+      for option in octave_stats.slotted (command):
+        if (option['kind'] != 'choice'):
+          continue
+        place, unused, more = self.listed (command, option['name'])
+        self.assertEqual (place['width'],
+                          option.get ('width', octave_layout.OPTION_WIDTH),
+                          '%s %s' % (command, option['name']))
+
+  def test_a_width_leaves_its_label_a_row_to_stand_in (self):
+    """A list stands at the right of the column and its label takes what is
+    left, so a width that fills the column leaves no room to say what the
+    list is for."""
+    for command in octave_stats.ANALYSES:
+      for option in octave_stats.slotted (command):
+        if (option['kind'] != 'choice'):
+          continue
+        unused, label, more = self.listed (command, option['name'])
+        self.assertGreaterEqual (label['width'], len (option['label']) * 4,
+                                 '%s %s' % (command, option['name']))
+
+  def test_a_list_stands_at_the_right_of_the_column (self):
+    place, label, option = self.listed ('Isoutlier', 'method')
+    self.assertEqual (place['width'], 130)
+    self.assertEqual (place['x'] + place['width'],
+                      octave_layout.LEFT + octave_layout.COLUMN)
+    self.assertGreater (place['x'], label['x'] + label['width'])
+
+  def test_a_list_whose_entry_says_nothing_is_a_field_wide (self):
+    place, unused, more = self.listed ('KruskalWallis', 'ctype')
+    self.assertEqual (place['width'], octave_layout.OPTION_WIDTH)
+
+
 class Picking (unittest.TestCase):
   """Every button that picks a range with the mouse says the same thing."""
 

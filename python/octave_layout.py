@@ -206,11 +206,10 @@ SLOT_LEFT = 250
 SLOT_WIDTH = 96
 PAIRS_WIDTH = 164
 
-# The heading above the option rows, and the rows themselves.
-OPTION_LABEL_WIDTH = 100
-OPTION_LEFT = 310
-OPTION_WIDTH = 104
-CHOICE_INDENT = 10
+# The heading above the option rows, and the rows themselves.  A list is
+# drawn OPTION_WIDTH wide unless its entry says how wide it is drawn, and
+# stands at the right of the column either way, its label taking the rest
+# of the row.
 
 # A row that says what it is beside its own name: the name, the note in
 # italics, and a field narrow enough to leave them both room.
@@ -256,6 +255,17 @@ def option_body (option):
   if (option.get ('rows')):
     return list_height (option['rows'])
   return BOX
+
+
+OPTION_LABEL_WIDTH = 100
+OPTION_WIDTH = 104
+CHOICE_INDENT = 10
+
+
+def choice_width (option):
+  """How wide the list of OPTION is drawn: what its entry says, or a
+  field's width where it says nothing."""
+  return option.get ('width', OPTION_WIDTH)
 
 
 def under (words):
@@ -412,16 +422,19 @@ def option_plan (column, slot, option):
       column.block (named (shown % place), LEFT + CHOICE_INDENT,
                     COLUMN - CHOICE_INDENT, BOX, label = label,
                     help = help_text)
-  elif (option.get ('rows')):
-    column.put (named ('label'), LEFT, OPTION_LABEL_WIDTH, LINE,
+  elif (kind == 'choice'):
+    wide = choice_width (option)
+    column.put (named ('label'), LEFT, COLUMN - PAD - wide, LINE,
                 label = option['label'])
-    column.block (named ('list'), OPTION_LEFT, OPTION_WIDTH,
-                  list_height (option['rows']), help = help_text)
+    listed = option.get ('rows')
+    column.block (named ('list' if listed else 'box'),
+                  LEFT + COLUMN - wide, wide,
+                  list_height (listed) if listed else BOX, help = help_text)
   else:
     column.put (named ('label'), LEFT, OPTION_LABEL_WIDTH, LINE,
                 label = option['label'])
-    column.block (named ('box' if kind == 'choice' else 'text'), OPTION_LEFT,
-                  OPTION_WIDTH, BOX, help = help_text)
+    column.block (named ('text'), LEFT + COLUMN - OPTION_WIDTH, OPTION_WIDTH,
+                  BOX, help = help_text)
   column.hint (named ('hint'), option['hint'], option.get ('help'))
 
 

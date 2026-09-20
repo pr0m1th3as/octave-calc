@@ -503,7 +503,9 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #             after the range, the layout and the names, in declared order.
 #             Each carries 'name', 'label', 'hint', 'default' and a 'kind':
 #             'choice' holds 'choices', ((value, label), ...), and reaches the
-#             function as text; 'number' holds 'minimum', 'maximum' and
+#             function as text, and may hold 'width', how wide the list is
+#             drawn in the dialog's units, the right column being 208 wide
+#             and a list 104 unless it says otherwise; 'number' holds 'minimum', 'maximum' and
 #             'accepts', the refusal's words, and reaches it as a number,
 #             whole when it holds 'whole', and the bound itself allowed where
 #             it holds 'atleast' or 'atmost'; 'numbers' holds the same and
@@ -688,7 +690,7 @@ ANALYSES = {
                    ('LeveneAbsolute', 'Levene, absolute deviations'),
                    ('BrownForsythe', 'Brown-Forsythe'),
                    ('OBrien', "O'Brien")),
-       'default': 'Bartlett'},
+       'width': 115, 'default': 'Bartlett'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
        'hint': 'Sets the width of the confidence interval of the ratio '
                'of the two variances. 0.05 by default.',
@@ -718,7 +720,7 @@ ANALYSES = {
                'once.',
        'choices': (('interaction', 'the two effects and their interaction'),
                    ('linear', 'the two effects, taken to add')),
-       'default': 'interaction'},
+       'width': 125, 'default': 'interaction'},
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
        'hint': 'How the p-values of the pairwise comparisons are held '
                'down, several pairs tested at once throwing up differences '
@@ -902,7 +904,7 @@ ANALYSES = {
                    ('quartiles', 'interquartile ranges from the quartiles'),
                    ('grubbs', "Grubbs' test"),
                    ('gesd', 'generalized extreme Studentized deviate')),
-       'default': 'median'},
+       'width': 130, 'default': 'median'},
       {'name': 'factor', 'kind': 'number', 'label': 'Factor:',
        'hint': 'How far out a value must sit, in the units the method '
                'counts in. 0 leaves the method the threshold of its own.',
