@@ -42,7 +42,9 @@ import traceback
 import uno
 import unohelper
 
-from com.sun.star.awt import XActionListener, XCallback, XItemListener
+from com.sun.star.awt import (XActionListener, XCallback, XItemListener,
+                              XTextListener)
+from com.sun.star.awt.FontWeight import BOLD
 from com.sun.star.awt.MessageBoxButtons import BUTTONS_OK, BUTTONS_YES_NO
 from com.sun.star.awt.MessageBoxResults import YES
 from com.sun.star.frame import XDispatch, XDispatchProvider
@@ -75,8 +77,23 @@ RADIOS = (('columns', 206, 102, 'Columns'), ('rows', 306, 102, 'Rows'),
 RADIO_NAMES = [radio[0] for radio in RADIOS]
 
 # Option rows the dialog holds ready, since a control cannot be added once it
-# is open.  An analysis may declare no more options than this.
-OPTION_SLOTS = 6
+# is open.
+OPTION_SLOTS = octave_stats.OPTION_SLOTS
+
+# The size and the seed of an analysis that declares them sit where the
+# layout buttons sit, which is free because an analysis that takes its size
+# from the results range reads no input range and so offers no layouts.
+SIZE_TOP = 90
+
+# Said above the results range, where the range is one of two ways of giving
+# the size and neither is visible from the other.
+SIZE_INTRO = ('Two ways to set the size of the returned cell range: select '
+              'the range itself, or select one cell and set the Rows and '
+              'Columns below.')
+
+# A note beside an option's name is italic.  A FixedText is one font
+# throughout, so the name and the note are two controls, not one label.
+ITALIC = uno.Enum ('com.sun.star.awt.FontSlant', 'ITALIC')
 
 # What each layout means, on hovering over its button, by the kind of input
 # the analysis reads.
@@ -160,13 +177,34 @@ class _Select (unohelper.Base, XActionListener):
 
 
 class _Chosen (unohelper.Base, XItemListener):
-  """A list whose selection changes the rest of the dialog."""
+  """A list whose selection changes the rest of the dialog.  UNO swallows
+  what a listener raises, which would leave the dialog half redrawn, so
+  anything that goes wrong is printed instead."""
 
   def __init__ (self, fn):
     self.fn = fn
 
   def itemStateChanged (self, unused):
-    self.fn ()
+    try:
+      self.fn ()
+    except Exception:
+      traceback.print_exc ()
+
+  def disposing (self, unused):
+    pass
+
+
+class _Typed (unohelper.Base, XTextListener):
+  """A field whose text changes the rest of the dialog."""
+
+  def __init__ (self, fn):
+    self.fn = fn
+
+  def textChanged (self, unused):
+    try:
+      self.fn ()
+    except Exception:
+      traceback.print_exc ()
 
   def disposing (self, unused):
     pass
@@ -343,6 +381,10 @@ class Analysis:
     add ('Button', 'input_pick', 350, 18, 64, 16, Label = 'Select...')
     add ('FixedText', 'input_hint', 206, 35, 208, 10,
          Label = 'The cells holding the data, with their group names if any.')
+    # Above the results range, in the space an analysis reading no cells
+    # leaves where the input range would be
+    add ('FixedText', 'output_intro', 206, 12, 208, 30, MultiLine = True,
+         Label = SIZE_INTRO)
     add ('FixedText', 'output_label', 206, 49, 80, 10, Label = 'Results to:')
     add ('Edit', 'output', 206, 60, 140, 14, Text = answers['output'],
          HelpText = 'One cell, the top left of the results.  The results grow '
@@ -359,13 +401,37 @@ class Analysis:
            HelpText = LAYOUT_HELP['range'][choice])
     add ('FixedText', 'by_hint', 206, 132, 208, 20, MultiLine = True,
          Label = BY_HINT['range'])
-    add ('FixedText', 'options_label', 206, 156, 80, 10, Label = 'Options:')
+    # The size of the draw: the results range where it holds more than one
+    # cell, and the two fields where it holds one
+    add ('FixedText', 'size_text', 206, SIZE_TOP + 2, 208, 10)
+    add ('FixedText', 'rows_label', 206, SIZE_TOP + 2, 26, 10,
+         Label = 'Rows:')
+    add ('Edit', 'rows_draw', 234, SIZE_TOP, 40, 12)
+    add ('FixedText', 'cols_label', 284, SIZE_TOP + 2, 40, 10,
+         Label = 'Columns:')
+    add ('Edit', 'cols_draw', 326, SIZE_TOP, 40, 12)
+    add ('FixedText', 'size_hint', 206, SIZE_TOP + 15, 208, 10)
+    add ('FixedText', 'seed_label', 206, SIZE_TOP + 30, 26, 10,
+         Label = 'Seed:')
+    add ('Edit', 'seed', 234, SIZE_TOP + 28, 60, 12)
+    # Two lines, the seed taking more words to explain than fit on one
+    add ('FixedText', 'seed_hint', 206, SIZE_TOP + 43, 208, 20,
+         MultiLine = True)
+    add ('FixedText', 'options_label', 206, 156, 208, 10, Label = 'Options:',
+         FontWeight = BOLD)
     for slot in range (OPTION_SLOTS):
       top = 168 + 24 * slot
       add ('FixedText', 'option%d_label' % slot, 206, top + 2, 100, 10)
       add ('ListBox', 'option%d_box' % slot, 310, top, 104, 12, Dropdown = True)
       add ('Edit', 'option%d_text' % slot, 310, top, 104, 12)
       add ('FixedText', 'option%d_hint' % slot, 206, top + 14, 208, 10)
+      # A row that carries a note reads "name: (what it is)", the note
+      # italic, so it needs a name of its own beside it and a field narrow
+      # enough to leave them both room
+      add ('FixedText', 'option%d_name' % slot, 206, top + 2, 40, 10)
+      add ('FixedText', 'option%d_note' % slot, 246, top + 2, 118, 10,
+           FontSlant = ITALIC)
+      add ('Edit', 'option%d_value' % slot, 368, top, 46, 12)
     add ('Button', 'ok', 296, 316, 54, 16, Label = 'OK', DefaultButton = True,
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType', 'OK'))
     add ('Button', 'cancel', 356, 316, 54, 16, Label = 'Cancel',
@@ -382,35 +448,108 @@ class Analysis:
       return dialog.getControl (name)
 
     def show_options (command):
-      """The option rows the chosen analysis declares, and no others: a list
-      to choose from, or a field to type a number in."""
-      options = octave_stats.ANALYSES[command]['options'] if command else ()
+      """The option rows the chosen analysis draws in them, and no others: a
+      list to choose from, or a field to type in.  Every row is emptied
+      before it is filled, so that nothing of the analysis before it is left
+      behind where this one declares less."""
+      options = octave_stats.slotted (command) if command else ()
       part ('options_label').setVisible (bool (options))
+      if (options):
+        part ('options_label').getModel ().Label = octave_stats.heading (
+          command)
       for slot in range (OPTION_SLOTS):
         option = options[slot] if slot < len (options) else None
         label, hint = (part ('option%d_label' % slot),
                        part ('option%d_hint' % slot))
         box, typed = (part ('option%d_box' % slot),
                       part ('option%d_text' % slot))
-        label.setVisible (option is not None)
-        hint.setVisible (option is not None)
-        box.setVisible (option is not None and option['kind'] == 'choice')
-        typed.setVisible (option is not None and option['kind'] == 'number')
+        name, note, value_of = (part ('option%d_name' % slot),
+                                part ('option%d_note' % slot),
+                                part ('option%d_value' % slot))
+        for control in (label, hint, box, typed, name, note, value_of):
+          control.setVisible (False)
+        for control in (label, hint, name, note):
+          control.getModel ().Label = ''
         if (option is None):
+          continue
+        for control in (box, typed, value_of):
+          control.getModel ().HelpText = option.get ('help', option['hint'])
+        value = state['options'].get (option['name'], option['default'])
+        # A noted row says what the option is beside its name, so it needs
+        # no line under it
+        if ('note' in option):
+          name.getModel ().Label = option['label']
+          note.getModel ().Label = '(%s)' % option['note']
+          value_of.getModel ().Text = str (value)
+          for control in (name, note, value_of):
+            control.setVisible (True)
           continue
         label.getModel ().Label = option['label']
         hint.getModel ().Label = option['hint']
-        for control in (box, typed):
-          control.getModel ().HelpText = option.get ('help', option['hint'])
-        value = state['options'].get (option['name'], option['default'])
-        if (option['kind'] == 'number'):
-          typed.getModel ().Text = str (value)
+        label.setVisible (True)
+        hint.setVisible (True)
+        if (option['kind'] == 'choice'):
+          box.getModel ().StringItemList = tuple (text for unused, text
+                                                  in option['choices'])
+          offered = [choice for choice, unused in option['choices']]
+          box.getModel ().SelectedItems = (
+            offered.index (value) if value in offered else 0,)
+          box.setVisible (True)
           continue
-        box.getModel ().StringItemList = tuple (text for unused, text
-                                                in option['choices'])
-        offered = [choice for choice, unused in option['choices']]
-        box.getModel ().SelectedItems = (
-          offered.index (value) if value in offered else 0,)
+        typed.getModel ().Text = str (value)
+        typed.setVisible (True)
+
+    def extent (text):
+      """The results range TEXT holds, as (rows, columns), where it names a
+      range of more than one cell; nothing otherwise, a single cell and a
+      size of 1 by 1 meaning the same thing."""
+      try:
+        at = self.resolve (text, 'results range').getRangeAddress ()
+      except Exception:
+        return None
+      size = (at.EndRow - at.StartRow + 1, at.EndColumn - at.StartColumn + 1)
+      return size if size[0] * size[1] > 1 else None
+
+    def show_size (command, refill = True):
+      """The size of the draw: what the results range gives, or the two
+      fields where it gives nothing.  REFILL is false where only the results
+      range has changed, so that what the user has typed into the fields
+      survives their picking a range and changing their mind."""
+      named = (octave_stats.ANALYSES[command].get ('sized') if command
+               else None)
+      seeded = (octave_stats.ANALYSES[command].get ('seeded') if command
+                else None)
+      size = extent (part ('output').getModel ().Text) if named else None
+      part ('output_intro').setVisible (bool (named))
+      part ('size_text').setVisible (size is not None)
+      for name in ('rows_label', 'rows_draw', 'cols_label', 'cols_draw'):
+        part (name).setVisible (bool (named) and size is None)
+      part ('size_hint').setVisible (bool (named))
+      for name in ('seed_label', 'seed', 'seed_hint'):
+        part (name).setVisible (bool (seeded))
+      # A range of more than one cell is not a corner the results grow from
+      part ('output_hint').getModel ().Label = (
+        'The cell range the results are written into.' if size
+        else 'The top left cell the results are written from.')
+      if (size):
+        part ('size_text').getModel ().Label = (
+          'Size: %d rows by %d columns.' % size)
+      if (named and refill):
+        rows, cols = (octave_stats.option_named (command, name)
+                      for name in named)
+        part ('size_hint').getModel ().Label = rows['hint']
+        for control, option in (('rows_draw', rows), ('cols_draw', cols)):
+          part (control).getModel ().Text = str (
+            state['options'].get (option['name'], option['default']))
+          part (control).getModel ().HelpText = option.get ('help',
+                                                           option['hint'])
+      if (seeded and refill):
+        seed = octave_stats.option_named (command, seeded)
+        part ('seed_label').getModel ().Label = seed['label']
+        part ('seed_hint').getModel ().Label = seed['hint']
+        part ('seed').getModel ().Text = str (
+          state['options'].get (seeded, seed['default']))
+        part ('seed').getModel ().HelpText = seed.get ('help', seed['hint'])
 
     def show (command):
       """Everything that follows from the chosen analysis."""
@@ -435,19 +574,23 @@ class Analysis:
         part (name).getModel ().Enabled = offered
         if (offered and part (name).getModel ().State):
           held = choice
-      if (analysis and held is None):
+      # An analysis that reads no cells offers no layout to fall back on
+      if (analysis and analysis['layouts'] and held is None):
         for name, choice in zip (RADIO_NAMES, octave_stats.BY):
           part (name).getModel ().State = int (choice == analysis['layouts'][0])
+      show_size (command)
       show_options (command)
 
     def show_category (category, command = None):
       """The analyses of CATEGORY, on COMMAND where it is one of them."""
       part ('category_detail').getModel ().Label = (
         octave_stats.CATEGORIES[category])
+      part ('analysis_label').getModel ().Label = (
+        octave_stats.list_label (category))
       commands = octave_stats.analyses_of (category)
       state['commands'] = commands
       part ('analysis').getModel ().StringItemList = tuple (
-        octave_stats.ANALYSES[each]['title'] for each in commands)
+        octave_stats.listed (each) for each in commands)
       if (commands):
         if (command not in commands):
           command = commands[0]
@@ -473,6 +616,8 @@ class Analysis:
     show_category (category, opening)
     part ('category').addItemListener (_Chosen (category_chosen))
     part ('analysis').addItemListener (_Chosen (analysis_chosen))
+    part ('output').addTextListener (
+      _Typed (lambda: show_size (state['command'], False)))
     for field in ('input', 'output'):
       part (field + '_pick').addActionListener (_Select (dialog, state, field))
     ended = dialog.execute ()
@@ -481,16 +626,25 @@ class Analysis:
       if (part (name).getModel ().State):
         by = choice
     command, values = state['command'], dict (state['options'])
+    analysis = octave_stats.ANALYSES[command] if command else None
     for slot, option in enumerate (
-        octave_stats.ANALYSES[command]['options'][:OPTION_SLOTS]
-        if command else ()):
-      if (option['kind'] == 'number'):
+        octave_stats.slotted (command)[:OPTION_SLOTS] if command else ()):
+      if ('note' in option):
         values[option['name']] = (
-          part ('option%d_text' % slot).getModel ().Text.strip ())
+          part ('option%d_value' % slot).getModel ().Text.strip ())
         continue
-      position = part ('option%d_box' % slot).getSelectedItemPos ()
-      if (0 <= position < len (option['choices'])):
-        values[option['name']] = option['choices'][position][0]
+      if (option['kind'] == 'choice'):
+        position = part ('option%d_box' % slot).getSelectedItemPos ()
+        if (0 <= position < len (option['choices'])):
+          values[option['name']] = option['choices'][position][0]
+        continue
+      values[option['name']] = (
+        part ('option%d_text' % slot).getModel ().Text.strip ())
+    if (analysis and analysis.get ('sized')):
+      for control, name in zip (('rows_draw', 'cols_draw'), analysis['sized']):
+        values[name] = part (control).getModel ().Text.strip ()
+    if (analysis and analysis.get ('seeded')):
+      values[analysis['seeded']] = part ('seed').getModel ().Text.strip ()
     answers = {'command': command,
                'input': part ('input').getModel ().Text.strip (),
                'output': part ('output').getModel ().Text.strip (),

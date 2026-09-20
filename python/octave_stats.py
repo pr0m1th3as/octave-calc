@@ -83,9 +83,29 @@ CATEGORIES = {
     'and which combinations to run.'}
 
 
+# What the list under a category is called, where 'Analysis:' is wrong for
+# what it holds.
+LIST_LABEL = {'Random numbers': 'Available generators:'}
+
+# Option rows the dialog holds ready, since a control cannot be added once it
+# is open.  An analysis may draw no more options than this in them.
+OPTION_SLOTS = 6
+
+# The longest note an option row can show beside its label without the field
+# to its right cutting it off, measured in characters against the width the
+# dialog gives it.  A note is a few words, not a sentence, so this is a
+# generous cap and not a squeeze.
+NOTE_LIMIT = 24
+
+
 def category_names ():
   """The categories in the order the dialog lists them."""
   return tuple (CATEGORIES)
+
+
+def list_label (category):
+  """What the list of the analyses of CATEGORY is called."""
+  return LIST_LABEL.get (category, 'Analysis:')
 
 # The options the three power analyses share, in the order their functions
 # take them.  The null standard deviation is taken by the z and t tests and
@@ -123,39 +143,246 @@ ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
                'accepts': 'a number greater than 0 and less than 1',
                'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
 
+INF = float ('inf')
+
+# What a distribution calls itself, where that differs from the name makedist
+# knows it by.  The generator list and the title of its results read this one,
+# the command and the call the other; a test holds the two together against
+# the DistributionName the live server gives.
+READABLE = {'BirnbaumSaunders': 'Birnbaum-Saunders',
+            'ExtremeValue': 'Extreme Value',
+            'GeneralizedExtremeValue': 'Generalized Extreme Value',
+            'GeneralizedPareto': 'Generalized Pareto',
+            'HalfNormal': 'Half Normal',
+            'InverseGaussian': 'Inverse Gaussian',
+            'Loglogistic': 'Log-Logistic',
+            'NegativeBinomial': 'Negative Binomial',
+            'tLocationScale': 't Location-Scale'}
+
+
+def readable (name):
+  """What the distribution NAME calls itself."""
+  return READABLE.get (name, name)
+
+# What a parameter of a distribution may be, taken from the checkparams its
+# own class raises on, which is the rule that holds and not always the wider
+# one ParameterRange declares.  A bound the parameter may reach is said with
+# 'atleast' or 'atmost'.
+ANY = {'minimum': -INF, 'maximum': INF}
+POSITIVE = {'minimum': 0.0, 'maximum': INF}
+COUNT = {'minimum': 0.0, 'maximum': INF, 'whole': True}
+FROM_ZERO = {'minimum': 0.0, 'maximum': INF, 'atleast': True}
+FROM_HALF = {'minimum': 0.5, 'maximum': INF, 'atleast': True}
+UNIT = {'minimum': 0.0, 'maximum': 1.0, 'atleast': True, 'atmost': True}
+PROBABILITY = {'minimum': 0.0, 'maximum': 1.0, 'atmost': True}
+TO_TWO = {'minimum': 0.0, 'maximum': 2.0, 'atmost': True}
+SKEW = {'minimum': -1.0, 'maximum': 1.0, 'atleast': True, 'atmost': True}
+
 # Every distribution makedist takes whose parameters are all single numbers,
-# with those parameters named in the label the user reads, so that a typed
-# list needs no order remembered and the dialog needs no row per parameter.
-# Kernel is not parametric, and Multinomial and PiecewiseLinear take vectors,
-# so none of the three can be given a number per parameter; a test against
-# the live server holds this list to the ones that can.
-DRAWN = (('Beta', 'Beta (a, b)'),
-         ('Binomial', 'Binomial (N, p)'),
-         ('BirnbaumSaunders', 'BirnbaumSaunders (beta, gamma)'),
-         ('Burr', 'Burr (alpha, c, k)'),
-         ('Exponential', 'Exponential (mu)'),
-         ('ExtremeValue', 'ExtremeValue (mu, sigma)'),
-         ('Gamma', 'Gamma (a, b)'),
-         ('GeneralizedExtremeValue',
-          'GeneralizedExtremeValue (k, sigma, mu)'),
-         ('GeneralizedPareto', 'GeneralizedPareto (k, sigma, theta)'),
-         ('HalfNormal', 'HalfNormal (mu, sigma)'),
-         ('InverseGaussian', 'InverseGaussian (mu, lambda)'),
-         ('Logistic', 'Logistic (mu, sigma)'),
-         ('Loglogistic', 'Loglogistic (mu, sigma)'),
-         ('Lognormal', 'Lognormal (mu, sigma)'),
-         ('Loguniform', 'Loguniform (Lower, Upper)'),
-         ('Nakagami', 'Nakagami (mu, omega)'),
-         ('NegativeBinomial', 'NegativeBinomial (R, P)'),
-         ('Normal', 'Normal (mu, sigma)'),
-         ('Poisson', 'Poisson (lambda)'),
-         ('Rayleigh', 'Rayleigh (B)'),
-         ('Rician', 'Rician (s, sigma)'),
-         ('Stable', 'Stable (alpha, beta, gam, delta)'),
-         ('tLocationScale', 'tLocationScale (mu, sigma, nu)'),
-         ('Triangular', 'Triangular (A, B, C)'),
-         ('Uniform', 'Uniform (Lower, Upper)'),
-         ('Weibull', 'Weibull (A, B)'))
+# each drawn from by a generator of its own, listed by its name alone since
+# the category already says they draw.  Kernel is not parametric, and
+# Multinomial and PiecewiseLinear take vectors, so none of the three can be
+# given a number per parameter; a test against the live server holds this
+# list to the ones that can.
+#
+# Each parameter carries the name makedist gives it, the description its
+# distribution class gives it, the bounds that class declares, and the value
+# makedist holds before it is told otherwise.  Triangular and Uniform declare
+# no range, their limits bounding each other rather than themselves, so their
+# parameters are open and makedist refuses what the dialog cannot.
+GENERATORS = (
+  ('Beta',
+   'Draws values between 0 and 1, shaped by the two parameters into '
+   'anything from a flat spread to a peak near either end.\n\n'
+   'Use it for proportions and rates: a success rate, a share, a '
+   'probability that is itself uncertain. a pulls the values towards 1 and '
+   'b towards 0; equal values are symmetric, and 1 for both is flat.',
+   (('a', 'first shape parameter', POSITIVE, '1'),
+    ('b', 'second shape parameter', POSITIVE, '1'))),
+  ('Binomial',
+   'Draws the number of successes in N independent trials, each succeeding '
+   'with probability p.\n\n'
+   'Use it for counts out of a fixed total: defects in a batch, heads in a '
+   'run of tosses, patients responding out of those treated. Every draw is '
+   'a whole number from 0 to N.',
+   (('N', 'number of trials', COUNT, '1'),
+    ('p', 'probability of success', UNIT, '0.5'))),
+  ('BirnbaumSaunders',
+   'Draws positive values from a distribution built for how long a part '
+   'lasts under repeated stress.\n\n'
+   'Use it for fatigue life and time to failure. beta is the median life, '
+   'and gamma how widely lives scatter about it.',
+   (('beta', 'scale', POSITIVE, '1'), ('gamma', 'shape', POSITIVE, '1'))),
+  ('Burr',
+   'Draws positive values with a heavy right tail, the two shape '
+   'parameters setting how heavy.\n\n'
+   'Use it for incomes, insurance claims and other quantities where a few '
+   'values dwarf the rest. alpha scales, and c and k shape.',
+   (('alpha', 'scale', POSITIVE, '1'), ('c', 'first shape', POSITIVE, '1'),
+    ('k', 'second shape', POSITIVE, '1'))),
+  ('Exponential',
+   'Draws positive values that fall away at a constant rate: the wait for '
+   'an event that is no more likely for having been waited for.\n\n'
+   'Use it for the time between arrivals, the life of something that does '
+   'not wear out, and the gaps in a Poisson process. mu is the mean wait.',
+   (('mu', 'mean', POSITIVE, '1'),)),
+  ('ExtremeValue',
+   'Draws the smallest of many values, from a distribution with a long '
+   'left tail.\n\n'
+   'Use it for minima: the weakest link, the lowest temperature of a year, '
+   'the first failure in a set. mu locates it and sigma spreads it. For '
+   'maxima use the generalized extreme value.',
+   (('mu', 'location', ANY, '0'), ('sigma', 'scale', POSITIVE, '1'))),
+  ('Gamma',
+   'Draws positive values skewed to the right: the total of a independent '
+   'exponential waits of mean b.\n\n'
+   'Use it for total waiting times, rainfall and insurance claims. a '
+   'shapes and b scales; a of 1 is the exponential.',
+   (('a', 'shape', POSITIVE, '1'), ('b', 'scale', POSITIVE, '1'))),
+  ('GeneralizedExtremeValue',
+   'Draws the largest of many values, the shape deciding which of the '
+   'three extreme value families it is.\n\n'
+   'Use it for maxima: flood heights, peak loads, record times. k below 0 '
+   'gives a bounded tail, 0 the Gumbel, and above 0 a heavy one; sigma '
+   'scales and mu locates.',
+   (('k', 'shape', ANY, '0'), ('sigma', 'scale', POSITIVE, '1'),
+    ('mu', 'location', ANY, '0'))),
+  ('GeneralizedPareto',
+   'Draws the amount by which a value passes a threshold, given that it '
+   'has passed it.\n\n'
+   'Use it for the tail of a distribution above a cutoff: losses beyond a '
+   'deductible, river levels above a bank. theta is the threshold, sigma '
+   'scales, and k above 0 gives a heavy tail.',
+   (('k', 'shape', ANY, '1'), ('sigma', 'scale', POSITIVE, '1'),
+    ('theta', 'location', ANY, '1'))),
+  ('HalfNormal',
+   'Draws the size of a normal value with its sign discarded, so every '
+   'draw is at mu or above it.\n\n'
+   'Use it for magnitudes and distances from a target, where the direction '
+   'does not matter, and for a quantity that cannot be negative. sigma is '
+   'the scale of the normal it folds.',
+   (('mu', 'location', ANY, '0'), ('sigma', 'scale', POSITIVE, '1'))),
+  ('InverseGaussian',
+   'Draws positive values skewed to the right: the time a drifting random '
+   'walk first reaches a level.\n\n'
+   'Use it for first passage times, reaction times and durations with a '
+   'sharp rise and a long tail. mu is the mean and lambda how tightly the '
+   'values gather.',
+   (('mu', 'mean', POSITIVE, '1'), ('lambda', 'shape', POSITIVE, '1'))),
+  ('Logistic',
+   'Draws values in a symmetric bell, a little heavier in the tails than '
+   'the normal.\n\n'
+   'Use it where a normal is nearly right but extremes are more common '
+   'than it allows, and as the noise behind logistic regression. mu '
+   'centres and sigma spreads.',
+   (('mu', 'location', ANY, '0'), ('sigma', 'scale', POSITIVE, '1'))),
+  ('Loglogistic',
+   'Draws positive values whose logarithm is logistic: skewed right, with '
+   'a heavy tail.\n\n'
+   'Use it for survival times and event durations where the risk rises and '
+   'then falls. mu and sigma are the mean and scale of the logarithm, not '
+   'of the values.',
+   (('mu', 'log mean', FROM_ZERO, '0'),
+    ('sigma', 'log scale', POSITIVE, '1'))),
+  ('Lognormal',
+   'Draws positive values whose logarithm is normal: skewed right, with a '
+   'long tail.\n\n'
+   'Use it for quantities built by multiplying: incomes, particle sizes, '
+   'concentrations, times that compound. mu and sigma are the mean and '
+   'standard deviation of the logarithm, not of the values.',
+   (('mu', 'log mean', ANY, '0'),
+    ('sigma', 'log standard deviation', POSITIVE, '1'))),
+  ('Loguniform',
+   'Draws positive values whose logarithm is spread evenly between the two '
+   'limits.\n\n'
+   'Use it where a quantity is as likely to be near 1 as near 1000, which '
+   'is how an unknown scale is usually treated: a rate, a tolerance, a '
+   'search over orders of magnitude.',
+   (('Lower', 'lower limit', POSITIVE, '1'),
+    ('Upper', 'upper limit', POSITIVE, '4'))),
+  ('Nakagami',
+   'Draws positive values from a distribution built for the strength of a '
+   'radio signal that has faded.\n\n'
+   'Use it for signal amplitude over a channel with several paths. mu sets '
+   'how deep the fading is, from 0.5 for the worst case upward, and omega '
+   'the mean power.',
+   (('mu', 'shape', FROM_HALF, '1'), ('omega', 'spread', POSITIVE, '1'))),
+  ('NegativeBinomial',
+   'Draws the number of failures before the Rth success, each trial '
+   'succeeding with probability P.\n\n'
+   'Use it for counts that vary more than a Poisson allows: accidents, '
+   'purchases, reads of a gene. Every draw is a whole number of 0 or more.',
+   (('R', 'number of successes', POSITIVE, '1'),
+    ('P', 'probability of success', PROBABILITY, '0.5'))),
+  ('Normal',
+   'Draws values that cluster about a mean and fall away symmetrically '
+   'either side of it.\n\n'
+   'Use it for measurement error, for a quantity made of many small '
+   'independent effects, and as the default where nothing suggests '
+   'otherwise. mu sets the centre and sigma the spread.',
+   (('mu', 'mean', ANY, '0'),
+    ('sigma', 'standard deviation', POSITIVE, '1'))),
+  ('Poisson',
+   'Draws the number of events in a fixed span, where they happen '
+   'independently at a steady rate.\n\n'
+   'Use it for counts with no upper limit: calls in an hour, defects in a '
+   'metre, arrivals in a day. lambda is both the mean count and its '
+   'variance.',
+   (('lambda', 'rate', POSITIVE, '1'),)),
+  ('Rayleigh',
+   'Draws the length of a two-dimensional vector whose two components are '
+   'independent normal values.\n\n'
+   'Use it for wind speeds, wave heights and the magnitude of a signal of '
+   'random phase. B is the scale of the components.',
+   (('B', 'scale', POSITIVE, '1'),)),
+  ('Rician',
+   'Draws the magnitude of a signal that has a steady part as well as a '
+   'random one.\n\n'
+   'Use it for a radio signal with a direct path among the scattered ones, '
+   'and for magnitudes in magnetic resonance images. s is the steady part '
+   'and sigma the noise; an s of 0 gives the Rayleigh.',
+   (('s', 'noncentrality', FROM_ZERO, '1'),
+    ('sigma', 'scale', POSITIVE, '1'))),
+  ('Stable',
+   'Draws values from a family whose tails are so heavy that, anywhere but '
+   'at an alpha of 2, the variance does not exist.\n\n'
+   'Use it for financial returns and other quantities with the occasional '
+   'enormous value. alpha sets the tail, 2 being the normal; beta the '
+   'skew, gam the scale and delta the location.',
+   (('alpha', 'first shape parameter', TO_TWO, '2'),
+    ('beta', 'second shape parameter', SKEW, '0'),
+    ('gam', 'scale', POSITIVE, '1'), ('delta', 'location', ANY, '0'))),
+  ('tLocationScale',
+   'Draws values in a symmetric bell with heavier tails than the normal, '
+   'growing lighter as nu rises.\n\n'
+   'Use it where extremes are more common than a normal allows: financial '
+   'returns, small samples, data with the occasional outlier. mu centres '
+   'and sigma scales; an nu above about 30 is close to normal.',
+   (('mu', 'location', ANY, '0'), ('sigma', 'scale', POSITIVE, '1'),
+    ('nu', 'degrees of freedom', POSITIVE, '5'))),
+  ('Triangular',
+   'Draws values between A and C, peaking at B, with a straight line '
+   'either side of the peak.\n\n'
+   'Use it where all that is known is a lowest, a likeliest and a highest '
+   'value, which is how project estimates and risk models are usually '
+   'given. A, B and C must rise in that order.',
+   (('A', 'lower limit', ANY, '0'), ('B', 'peak location', ANY, '0.5'),
+    ('C', 'upper limit', ANY, '1'))),
+  ('Uniform',
+   'Draws values spread evenly between the two limits, none of them more '
+   'likely than another.\n\n'
+   'Use it for a quantity known only to lie in a range, for rounding '
+   'error, and as the raw material other draws are built from. Lower must '
+   'be below Upper.',
+   (('Lower', 'lower limit', ANY, '0'),
+    ('Upper', 'upper limit', ANY, '1'))),
+  ('Weibull',
+   'Draws positive values whose failure rate rises, falls or holds steady '
+   'as the shape B decides.\n\n'
+   'Use it for time to failure and for material strength. A B below 1 is '
+   'early failure, 1 the exponential and above 1 wearing out; A is the '
+   'scale.',
+   (('A', 'scale', POSITIVE, '1'), ('B', 'shape', POSITIVE, '1'))))
 
 # The layouts an analysis of one sample takes: a column of values, or a row.
 SAMPLE = ('columns', 'rows')
@@ -227,6 +454,8 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #
 #   category  which list it appears under
 #   title     the dialog's title and the first cell of the results
+#   listed    what the list calls it, where that is shorter than the title;
+#             the title itself otherwise
 #   function  the Octave function in the octave folder
 #   detail    what it does and when to use it, shown under the list
 #   input     'range', the analysis reads the cells of an input range, or
@@ -234,15 +463,23 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #   layouts   the ways it takes its input range, from BY, or () when it reads
 #             no cells
 #   sized     where an analysis takes its size from the results range, the
-#             two options that range replaces, rows first; absent otherwise
+#             two options that range replaces, rows first; absent otherwise.
+#             The dialog draws them as the Rows and Columns fields under the
+#             results range, in place of the size the range itself gives
+#   seeded    where an analysis takes a seed, the option the dialog draws as
+#             the Seed field under the size; absent otherwise
+#   heading   what the option rows are called, where 'Options:' is wrong for
+#             what they hold
 #   options   what the user chooses besides the ranges, passed to the function
 #             after the range, the layout and the names, in declared order.
 #             Each carries 'name', 'label', 'hint', 'default' and a 'kind':
 #             'choice' holds 'choices', ((value, label), ...), and reaches the
 #             function as text; 'number' holds 'minimum', 'maximum' and
 #             'accepts', the refusal's words, and reaches it as a number,
-#             whole when it holds 'whole'; 'numbers' holds the same and
-#             reaches the function as a range of one row
+#             whole when it holds 'whole', and the bound itself allowed where
+#             it holds 'atleast' or 'atmost'; 'numbers' holds the same and
+#             reaches the function as a range of one row; 'fixed' is never
+#             drawn and reaches the function as its default, as text
 ANALYSES = {
   'KruskalWallis': {
     'category': 'Group comparisons',
@@ -626,51 +863,6 @@ ANALYSES = {
        'accepts': 'a number', 'minimum': float ('-inf'),
        'maximum': float ('inf'), 'default': '0'},
       TAIL_MEANS_SAMPLE, ALPHA_LEVEL)},
-  'RandomNumbers': {
-    'category': 'Random numbers',
-    'input': 'none',
-    'title': 'Random numbers',
-    'function': 'octave_calc_random',
-    'detail': 'Draws a block of values from a distribution and the '
-              'parameters you give it.\n\n'
-              'Use it to try an analysis on data of a shape you know, to '
-              'judge how much a result could have been chance, or to build '
-              'a teaching example. The numbers are written once and do not '
-              'change afterwards, so a sheet keeps what it was built '
-              'from.\n\n'
-              'Each distribution names its parameters in the list, in the '
-              'order they are typed. The seed is written above the numbers '
-              'whether you gave one or not, so any block can be drawn '
-              'again.',
-    'layouts': (),
-    'sized': ('nrows', 'ncols'),
-    'options': (
-      {'name': 'distname', 'kind': 'choice', 'label': 'Distribution:',
-       'hint': 'The distribution to draw from.  Its parameters are named in '
-               'the list, in the order they are typed below.',
-       'choices': DRAWN, 'default': 'Normal'},
-      {'name': 'params', 'kind': 'numbers', 'label': 'Parameters:',
-       'hint': 'One number for each parameter of the distribution, in the '
-               'order its name gives them.',
-       'accepts': 'a number for each parameter of the distribution',
-       'minimum': float ('-inf'), 'maximum': float ('inf'),
-       'default': '0 1'},
-      {'name': 'nrows', 'kind': 'number', 'label': 'Rows:',
-       'hint': 'How many rows to draw.  A results range of more than one '
-               'cell is used instead.',
-       'accepts': 'a whole number of 1 or more', 'minimum': 0.0,
-       'maximum': float ('inf'), 'whole': True, 'default': '10'},
-      {'name': 'ncols', 'kind': 'number', 'label': 'Columns:',
-       'hint': 'How many columns to draw.  A results range of more than one '
-               'cell is used instead.',
-       'accepts': 'a whole number of 1 or more', 'minimum': 0.0,
-       'maximum': float ('inf'), 'whole': True, 'default': '1'},
-      {'name': 'seed', 'kind': 'numbers', 'label': 'Seed:',
-       'hint': 'Leave it empty for a seed chosen at the time, which is '
-               'written above the numbers either way.',
-       'accepts': 'a whole number of 0 or more, or nothing at all',
-       'minimum': -1.0, 'maximum': float ('inf'), 'whole': True,
-       'optional': True, 'default': ''})},
   'FullFactorial': {
     'category': 'Experimental design',
     'title': 'Full factorial design',
@@ -766,6 +958,106 @@ ANALYSES = {
                 SAMPLE_SIZE, ALPHA_LEVEL)}}
 
 
+def accepts_text (bounds):
+  """What a parameter of those BOUNDS accepts, as a refusal ends."""
+  low, high = bounds['minimum'], bounds['maximum']
+  noun = 'a whole number' if bounds.get ('whole') else 'a number'
+  if (bounds.get ('atleast') and bounds.get ('atmost')):
+    return '%s from %g to %g' % (noun, low, high)
+  under = ('' if high == INF else
+           'no more than %g' % high if bounds.get ('atmost')
+           else 'less than %g' % high)
+  over = ('' if low == -INF else
+          '%g or more' % low if bounds.get ('atleast')
+          else 'greater than %g' % low)
+  if (over and under):
+    return '%s %s and %s' % (noun, over, under)
+  return '%s %s' % (noun, over or under) if (over or under) else noun
+
+
+# The size of the draw and the seed, which every generator takes and the
+# dialog draws under the results range rather than among the parameters.
+# A hint says what the field is for, in a sentence the user could have
+# written; the tooltip says the rest.  A generator returns the numbers and
+# nothing else, so the size asked for is the size written.
+DRAW_ROWS = {'name': 'nrows', 'kind': 'number', 'label': 'Rows:',
+             'hint': 'Set the size of the returned cell range.',
+             'help': 'Set the size of the returned cell range.  A results '
+                     'range of more than one cell sets it instead.',
+             'accepts': 'a whole number of 1 or more', 'minimum': 0.0,
+             'maximum': INF, 'whole': True, 'default': '10'}
+
+DRAW_COLS = dict (DRAW_ROWS, name = 'ncols', label = 'Columns:',
+                  default = '1')
+
+DRAW_SEED = {'name': 'seed', 'kind': 'numbers', 'label': 'Seed:',
+             'hint': 'Set a seed to draw the same numbers again.  Leave it '
+                     'empty and one is chosen for you.',
+             'help': 'Set a seed to draw the same numbers again.  Leave it '
+                     'empty and one is chosen at the time.  The seed is '
+                     'written above the numbers either way.',
+             'accepts': 'a whole number of 0 or more, or nothing at all',
+             'minimum': -1.0, 'maximum': INF, 'whole': True,
+             'optional': True, 'default': ''}
+
+# A generator each, from GENERATORS.  The command a macro dispatches is
+# Random and the name makedist knows the distribution by; the list shows
+# that name alone, and the sheet the whole title.
+for _name, _detail, _parameters in GENERATORS:
+  ANALYSES['Random%s' % _name] = {
+    'category': 'Random numbers',
+    'input': 'none',
+    'title': '%s random numbers' % readable (_name),
+    'listed': readable (_name),
+    'function': 'octave_calc_random',
+    'detail': _detail,
+    'layouts': (),
+    'sized': ('nrows', 'ncols'),
+    'seeded': 'seed',
+    'heading': 'Distribution parameters:',
+    'options': (
+      {'name': 'distname', 'kind': 'fixed', 'label': 'Distribution:',
+       'hint': 'The distribution drawn from.', 'default': _name},
+      DRAW_ROWS, DRAW_COLS, DRAW_SEED)
+      + tuple (dict (_bounds, name = _parameter, kind = 'number',
+                     label = '%s:' % _parameter, note = _description,
+                     hint = '%s.  Takes %s.'
+                            % (_description[:1].upper () + _description[1:],
+                               accepts_text (_bounds)),
+                     accepts = accepts_text (_bounds), default = _default)
+               for _parameter, _description, _bounds, _default
+               in _parameters)}
+
+
+def listed (command):
+  """What the list calls COMMAND."""
+  analysis = ANALYSES[command]
+  return analysis.get ('listed', analysis['title'])
+
+
+def slotted (command):
+  """The options of COMMAND the dialog draws in its option rows: those it
+  does not draw beside the results range, and those it draws at all."""
+  analysis = ANALYSES[command]
+  aside = set (analysis.get ('sized', ()))
+  aside.add (analysis.get ('seeded'))
+  return tuple (option for option in analysis['options']
+                if option['kind'] != 'fixed' and option['name'] not in aside)
+
+
+def heading (command):
+  """What the option rows of COMMAND are called."""
+  return ANALYSES[command].get ('heading', 'Options:')
+
+
+def option_named (command, name):
+  """The option of COMMAND called NAME."""
+  for option in ANALYSES[command]['options']:
+    if (option['name'] == name):
+      return option
+  raise KeyError ('%s declares no option "%s".' % (command, name))
+
+
 def first_analysis ():
   """The command the dialog opens on: the first analysis of the first
   category that has one."""
@@ -815,7 +1107,11 @@ def option_numbers (option, value):
       number = float (word)
     except ValueError:
       raise refusal
-    if (not (option['minimum'] < number < option['maximum'])):
+    over = (number >= option['minimum'] if option.get ('atleast')
+            else number > option['minimum'])
+    under = (number <= option['maximum'] if option.get ('atmost')
+             else number < option['maximum'])
+    if (not (over and under)):
       raise refusal
     if (option.get ('whole') and number != int (number)):
       raise refusal
@@ -832,6 +1128,9 @@ def option_args (command, values):
   args = []
   for option in ANALYSES[command]['options']:
     value = values.get (option['name'], option['default'])
+    if (option['kind'] == 'fixed'):
+      args.append ({'type': 'string', 'value': option['default']})
+      continue
     if (option['kind'] == 'number'):
       args.append ({'type': 'number', 'value': option_number (option, value)})
       continue

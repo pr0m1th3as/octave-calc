@@ -24,6 +24,7 @@ statistics package and the extension's octave folder, and are skipped where no
 sandbox can run.  The analysis functions carry their own BISTs.
 """
 
+import ast
 import importlib.util
 import math
 import os
@@ -241,16 +242,66 @@ class Packaged (unittest.TestCase):
         self.assertTrue (os.path.exists (source), published)
 
 
+class DialogControls (unittest.TestCase):
+  """Every control of the dialog is named, and UNO refuses a name given
+  twice.  It refuses it while the dialog is still being built, so the whole
+  dialog is lost, and the menu entry then does nothing at all: there is no
+  half-drawn dialog to notice and the reason only reaches the error output.
+  The names are read out of the source, since the dialog itself cannot be
+  built without LibreOffice.
+
+  It is worth a test of its own because the layout buttons are named after
+  the layouts, which are ordinary words like rows and columns that a field
+  added later would want too."""
+
+  def names (self):
+    with open (os.path.join (ROOT, 'python', 'statistics_menu.py')) as source:
+      tree = ast.parse (source.read ())
+    found = []
+    for node in ast.walk (tree):
+      # The layout buttons, named from the RADIOS table
+      if (isinstance (node, ast.Assign)
+          and any (getattr (target, 'id', None) == 'RADIOS'
+                   for target in node.targets)):
+        found.extend (row.elts[0].value for row in node.value.elts)
+      # Every other control, named in its own add () call
+      if (not (isinstance (node, ast.Call)
+               and getattr (node.func, 'id', None) == 'add'
+               and len (node.args) > 1)):
+        continue
+      name = node.args[1]
+      if (isinstance (name, ast.Constant)):
+        found.append (name.value)
+      elif (isinstance (name, ast.BinOp)
+            and isinstance (name.left, ast.Constant)):
+        # An option row, one per slot
+        found.extend (name.left.value % slot
+                      for slot in range (octave_stats.OPTION_SLOTS))
+    return found
+
+  def test_the_dialog_is_read (self):
+    self.assertIn ('category', self.names ())
+
+  def test_every_control_is_named_once (self):
+    names = self.names ()
+    self.assertEqual (sorted (name for name in set (names)
+                              if names.count (name) > 1), [])
+
+
 class Registry (unittest.TestCase):
+
+  OPTIONAL = {'sized', 'seeded', 'listed', 'heading'}
 
   def test_every_analysis_is_complete (self):
     for command, analysis in octave_stats.ANALYSES.items ():
-      self.assertEqual (sorted (set (analysis) - {'sized'}),
+      self.assertEqual (sorted (set (analysis) - self.OPTIONAL),
                         ['category', 'detail', 'function', 'input', 'layouts',
                          'options', 'title'], command)
+      declared = [option['name'] for option in analysis['options']]
       for name in analysis.get ('sized', ()):
-        self.assertIn (name, [option['name']
-                              for option in analysis['options']], command)
+        self.assertIn (name, declared, command)
+      if ('seeded' in analysis):
+        self.assertIn (analysis['seeded'], declared, command)
       self.assertIn (analysis['input'], octave_stats.INPUTS, command)
       self.assertEqual (analysis['input'] == 'none',
                         analysis['layouts'] == (), command)
@@ -301,8 +352,44 @@ class Registry (unittest.TestCase):
     self.assertIn ('sample names', octave_stats.allowed ('columns', 'sample'))
 
   def test_options_fit_the_dialog (self):
-    for command, analysis in octave_stats.ANALYSES.items ():
-      self.assertLessEqual (len (analysis['options']), 6, command)
+    """Only the options drawn in the rows are capped; the size and the seed
+    have fields of their own and a fixed value is never drawn."""
+    for command in octave_stats.ANALYSES:
+      self.assertLessEqual (len (octave_stats.slotted (command)),
+                            octave_stats.OPTION_SLOTS, command)
+
+  def test_slotted_leaves_out_what_is_drawn_elsewhere (self):
+    self.assertEqual ([option['name']
+                       for option in octave_stats.slotted ('RandomNormal')],
+                      ['mu', 'sigma'])
+
+  def test_slotted_holds_every_option_by_default (self):
+    self.assertEqual ([option['name']
+                       for option in octave_stats.slotted ('Ttest1')],
+                      ['nullmean', 'tail', 'alpha'])
+
+  def test_the_generator_list_is_called_what_it_holds (self):
+    self.assertEqual (octave_stats.list_label ('Random numbers'),
+                      'Available generators:')
+
+  def test_every_other_list_is_called_the_analysis (self):
+    self.assertEqual (octave_stats.list_label ('Group comparisons'),
+                      'Analysis:')
+
+  def test_generator_rows_are_called_the_parameters (self):
+    self.assertEqual (octave_stats.heading ('RandomNormal'),
+                      'Distribution parameters:')
+
+  def test_other_rows_are_called_the_options (self):
+    self.assertEqual (octave_stats.heading ('Ttest1'), 'Options:')
+
+  def test_a_generator_is_listed_by_its_name_alone (self):
+    self.assertEqual (octave_stats.listed ('RandomNormal'), 'Normal')
+    self.assertEqual (octave_stats.ANALYSES['RandomNormal']['title'],
+                      'Normal random numbers')
+
+  def test_an_analysis_is_listed_by_its_title (self):
+    self.assertEqual (octave_stats.listed ('Ttest1'), 'One-sample t-test')
 
   def test_analyses_of_experimental_design (self):
     self.assertEqual (octave_stats.analyses_of ('Experimental design'),
@@ -314,9 +401,70 @@ class Registry (unittest.TestCase):
     self.assertEqual ([arg['value'] for arg in args],
                       ['t', 5.0, 2.0, 6.0, 0.9, 0.05])
 
-  def test_analyses_of_random_numbers (self):
+  def test_a_generator_for_every_distribution (self):
     self.assertEqual (octave_stats.analyses_of ('Random numbers'),
-                      ('RandomNumbers',))
+                      tuple ('Random%s' % name
+                             for name, unused, more in
+                             octave_stats.GENERATORS))
+
+  def test_a_generator_passes_its_distribution_first (self):
+    self.assertEqual (octave_stats.option_args ('RandomPoisson', {}),
+                      [{'type': 'string', 'value': 'Poisson'},
+                       {'type': 'number', 'value': 10.0},
+                       {'type': 'number', 'value': 1.0},
+                       {'type': 'string', 'value': ''},
+                       {'type': 'number', 'value': 1.0}])
+
+  def test_a_parameter_says_what_it_is_beside_its_name (self):
+    self.assertEqual ([(option['label'], option['note'])
+                       for option in octave_stats.slotted ('RandomNormal')],
+                      [('mu:', 'mean'), ('sigma:', 'standard deviation')])
+
+  def test_a_note_fits_beside_the_field (self):
+    """The note is drawn in a control of a fixed width, so one too long is
+    cut off rather than wrapped."""
+    for command in octave_stats.ANALYSES:
+      for option in octave_stats.slotted (command):
+        note = option.get ('note')
+        if (note is not None):
+          self.assertLessEqual (len (note), octave_stats.NOTE_LIMIT,
+                                '%s %s' % (command, option['name']))
+          self.assertEqual (note, note.lower (), note)
+
+  def test_a_generator_takes_its_parameters_in_order (self):
+    self.assertEqual ([option['label']
+                       for option in octave_stats.slotted ('RandomStable')],
+                      ['alpha:', 'beta:', 'gam:', 'delta:'])
+
+  def test_a_parameter_may_reach_a_bound_it_is_allowed (self):
+    """Binomial's p is bounded in [0, 1], which the open check the other
+    options use would refuse at either end."""
+    self.assertEqual (octave_stats.option_args ('RandomBinomial',
+                                                {'p': '1'})[4]['value'], 1.0)
+
+  def test_a_parameter_past_a_bound_is_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.option_args ('RandomBinomial', {'p': '1.5'})
+    self.assertEqual (str (raised.exception),
+                      'the p must be a number from 0 to 1.')
+
+  def test_a_whole_parameter_is_refused_a_fraction (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.option_args ('RandomBinomial', {'N': '2.5'})
+    self.assertEqual (str (raised.exception),
+                      'the n must be a whole number greater than 0.')
+
+  def test_what_the_bounds_accept_is_said_in_words (self):
+    self.assertEqual (octave_stats.accepts_text (octave_stats.ANY),
+                      'a number')
+    self.assertEqual (octave_stats.accepts_text (octave_stats.POSITIVE),
+                      'a number greater than 0')
+    self.assertEqual (octave_stats.accepts_text (octave_stats.FROM_HALF),
+                      'a number 0.5 or more')
+    self.assertEqual (octave_stats.accepts_text (octave_stats.TO_TWO),
+                      'a number greater than 0 and no more than 2')
+    self.assertEqual (octave_stats.accepts_text (octave_stats.SKEW),
+                      'a number from -1 to 1')
 
   def test_analyses_of_empty_category (self):
     self.assertEqual (octave_stats.analyses_of ('Association tests'), ())
@@ -329,8 +477,12 @@ class Registry (unittest.TestCase):
       for option in analysis['options']:
         self.assertTrue ({'name', 'kind', 'label', 'hint', 'default'}
                          <= set (option), option)
-        self.assertIn (option['kind'], ('choice', 'number', 'numbers'),
-                     option['name'])
+        self.assertIn (option['kind'],
+                       ('choice', 'number', 'numbers', 'fixed'),
+                       option['name'])
+        if (option['kind'] in ('number', 'numbers')):
+          self.assertTrue ({'accepts', 'minimum', 'maximum'} <= set (option),
+                           option['name'])
 
   def test_option_defaults (self):
     self.assertEqual (octave_stats.option_defaults ('KruskalWallis'),
@@ -564,7 +716,8 @@ class AnalysesInOctave (unittest.TestCase):
   @classmethod
   def setUpClass (cls):
     cls.runner = octave_core.Server (
-      {'folders': [os.path.join (ROOT, 'octave')],
+      {'folders': [os.path.join (ROOT, 'octave'),
+                   os.path.join (ROOT, 'tests', 'functions')],
        'packages': [octave_stats.PACKAGE], 'memory': 2, 'tmp': 2,
        'seconds': 60}, sandbox_only = False)
 
@@ -785,28 +938,56 @@ class AnalysesInOctave (unittest.TestCase):
     self.assertEqual (named, octave_stats.FITTED)
 
   def test_random_numbers_reach_cells (self):
-    table = self.run_analysis ((), 'columns', 'RandomNumbers',
-                               {'params': '5 2', 'nrows': '3', 'ncols': '4',
-                                'seed': '7'})
-    self.assertEqual (table[0][0], self.titled ('RandomNumbers'))
-    self.assertEqual ([line[0] for line in table[2:7]],
-                      ['Distribution', 'mu', 'sigma', 'Size', 'Seed'])
-    self.assertEqual (len (table), 11)
+    """A generator returns the drawn numbers and nothing else, so the block
+    written is exactly the size asked for and every cell is a number."""
+    table = self.run_analysis ((), 'columns', 'RandomNormal',
+                               {'mu': '5', 'sigma': '2', 'nrows': '3',
+                                'ncols': '4', 'seed': '7'})
+    self.assertEqual ((len (table), len (table[0])), (3, 4))
+    for line in table:
+      for value in line:
+        self.assertIsInstance (value, float)
 
-  def test_a_seed_that_was_not_given_is_still_written (self):
-    table = self.run_analysis ((), 'columns', 'RandomNumbers',
-                               {'params': '5 2', 'nrows': '2', 'ncols': '2'})
-    self.assertEqual (table[6][0], 'Seed')
-    self.assertTrue (isinstance (table[6][1], float))
+  def test_a_seed_that_was_not_given_still_draws (self):
+    table = self.run_analysis ((), 'columns', 'RandomNormal',
+                               {'nrows': '2', 'ncols': '2'})
+    self.assertEqual ((len (table), len (table[0])), (2, 2))
 
   def test_the_drawn_distributions_are_the_ones_makedist_takes (self):
     """Every distribution the dialog offers must be one makedist builds
     from a number per parameter; the three it cannot are left out."""
     listed = self.runner.call ('makedist', [])
     named = set (line[0] for line in octave_core.output_rows (listed[0]))
-    offered = set (name for name, unused in octave_stats.DRAWN)
+    offered = set (name for name, unused, more in octave_stats.GENERATORS)
     self.assertEqual (named - offered,
                       {'Kernel', 'Multinomial', 'PiecewiseLinear'})
+
+  def test_every_generator_names_the_parameters_makedist_names (self):
+    """The dialog labels each field with a parameter name and passes the
+    numbers in that order, so a name or an order that drifts upstream puts
+    the values into the wrong parameters in silence."""
+    for name, unused, parameters in octave_stats.GENERATORS:
+      declared = self.runner.call (
+        'octave_calc_parameters', [{'type': 'string', 'value': name}])
+      self.assertEqual (
+        [line[0] for line in octave_core.output_rows (declared[0])],
+        [parameter for parameter, d, b, v in parameters], name)
+
+  def test_every_generator_is_listed_as_the_distribution_names_itself (self):
+    for name, unused, more in octave_stats.GENERATORS:
+      declared = self.runner.call (
+        'octave_calc_parameters', [{'type': 'string', 'value': name}],
+        nargout = 2)
+      self.assertEqual (octave_stats.readable (name),
+                        octave_core.output_rows (declared[1])[0][0], name)
+
+  def test_every_generator_draws (self):
+    """A parameter's default must be one its own distribution accepts, or
+    the generator refuses before the user has touched anything."""
+    for name, unused, more in octave_stats.GENERATORS:
+      table = self.run_analysis ((), 'columns', 'Random%s' % name,
+                                 {'nrows': '2', 'ncols': '2', 'seed': '1'})
+      self.assertEqual ((len (table), len (table[0])), (2, 2), name)
 
   def test_refusal_names_no_function (self):
     with self.assertRaises (RuntimeError) as raised:

@@ -16,34 +16,31 @@
 ## this program; if not, see <http://www.gnu.org/licenses/>.
 
 ## -*- texinfo -*-
-## @deftypefn  {octave-calc} {@var{C} =} octave_calc_random (@var{DISTNAME}, @var{PARAMS}, @var{NROWS}, @var{NCOLS})
-## @deftypefnx {octave-calc} {@var{C} =} octave_calc_random (@var{DISTNAME}, @var{PARAMS}, @var{NROWS}, @var{NCOLS}, @var{SEED})
+## @deftypefn  {octave-calc} {@var{C} =} octave_calc_random (@var{DISTNAME}, @var{NROWS}, @var{NCOLS}, @var{SEED})
+## @deftypefnx {octave-calc} {@var{C} =} octave_calc_random (@var{DISTNAME}, @var{NROWS}, @var{NCOLS}, @var{SEED}, @var{P1}, @dots{})
 ##
 ## Random numbers for Data > Statistics with GNU Octave.
 ##
-## @code{@var{C} = octave_calc_random (@var{DISTNAME}, @var{PARAMS},
-## @var{NROWS}, @var{NCOLS})} draws @var{NROWS} by @var{NCOLS} values from
-## the distribution @var{DISTNAME} with the parameters @var{PARAMS}, which
-## are a row of numbers, one for each parameter the distribution takes, in
-## the order @code{makedist} names them.
+## @code{@var{C} = octave_calc_random (@var{DISTNAME}, @var{NROWS},
+## @var{NCOLS}, @var{SEED}, @var{P1}, @dots{})} draws @var{NROWS} by
+## @var{NCOLS} values from the distribution @var{DISTNAME}, whose parameters
+## follow the seed one number each, in the order @code{makedist} names them.
 ##
-## @var{SEED} seeds the generators before the draw and is written above the
-## numbers.  Where it is empty a seed is chosen from the clock, used, and
-## written out just the same, so that a block of numbers always records what
-## would produce it again.
+## @var{SEED} seeds the generators before the draw, so that the same seed
+## draws the same numbers again.  Where it is empty a seed is chosen from the
+## clock.
 ##
 ## Every generator with a state of its own is seeded, not @code{rand} and
 ## @code{randn} alone: a Poisson draw goes through @code{randp} and a gamma
 ## draw through @code{randg}, and seeding the first two leaves both of those
 ## free to wander.
 ##
-## @var{C} is a cell array of scalars, text and empty values, laid out as the
-## cells written into the sheet: the title; the distribution, its parameters,
-## the size and the seed; then the numbers themselves.  It is as wide as
-## @var{NCOLS} or four, whichever is the greater, so that the lines above
-## the numbers are never cut short.
+## @var{C} is a cell array of the drawn numbers, @var{NROWS} by
+## @var{NCOLS}, and holds nothing else: no title, no heading and no note of
+## what drew them.  It is written into the cells the user chose, and they
+## hold numbers as any other cells do.
 ##
-## The block is capped at 100,000 numbers, since the results are written to
+## The draw is capped at 100,000 numbers, since the results are written to
 ## the sheet one cell at a time.
 ##
 ## The @code{statistics} package must be loaded.
@@ -51,21 +48,20 @@
 ## @seealso{makedist, random}
 ## @end deftypefn
 
-function C = octave_calc_random (DISTNAME, PARAMS, NROWS, NCOLS, SEED)
+function C = octave_calc_random (DISTNAME, NROWS, NCOLS, SEED, varargin)
 
   ## Input validation
-  if (nargin < 4 || nargin > 5)
+  if (nargin < 4)
     error ("octave_calc_random: invalid number of input arguments.");
-  endif
-  if (nargin < 5)
-    SEED = [];
   endif
   if (! (ischar (DISTNAME) && any (strcmpi (DISTNAME, makedist ()))))
     error (strcat ("octave_calc_random: DISTNAME must be a distribution", ...
                    " makedist takes."));
   endif
-  if (! (isnumeric (PARAMS) && isreal (PARAMS) && isvector (PARAMS)))
-    error ("octave_calc_random: PARAMS must be a row of numbers.");
+  PARAMS = [varargin{:}];
+  if (! (isnumeric (PARAMS) && isreal (PARAMS)
+         && numel (PARAMS) == numel (varargin)))
+    error ("octave_calc_random: each parameter must be one number.");
   endif
   [nrows, errmsg] = counted (NROWS, "NROWS");
   if (! isempty (errmsg))
@@ -91,9 +87,17 @@ function C = octave_calc_random (DISTNAME, PARAMS, NROWS, NCOLS, SEED)
   ## them so that neither side has to assume an order
   names = makedist (DISTNAME).ParameterNames;
   if (numel (PARAMS) != numel (names))
-    error (strcat ("octave_calc_random: %s takes %d parameters, %s, and", ...
-                   " %d were given."), DISTNAME, numel (names), ...
-           strjoin (names, ", "), numel (PARAMS));
+    ending = "s";
+    if (numel (names) == 1)
+      ending = "";
+    endif
+    given = "were";
+    if (numel (PARAMS) == 1)
+      given = "was";
+    endif
+    error (strcat ("octave_calc_random: %s takes %d parameter%s, %s,", ...
+                   " and %d %s given."), DISTNAME, numel (names), ending, ...
+           strjoin (names, ", "), numel (PARAMS), given);
   endif
   pairs = cell (1, 2 * numel (names));
   pairs(1:2:end) = names;
@@ -105,32 +109,17 @@ function C = octave_calc_random (DISTNAME, PARAMS, NROWS, NCOLS, SEED)
            strtrim (regexprep (err.message, '^[^:]*:', '')));
   end_try_catch
 
-  ## The draw, under a seed that is always written out
+  ## The draw, under the seed given or one taken from the clock
   if (isempty (SEED))
     SEED = mod (floor (now () * 86400000), 2 ^ 31);
   endif
   for g = {'rand', 'randn', 'randp', 'rande', 'randg'}
     feval (g{1}, 'seed', SEED);
   endfor
-  values = random (pd, nrows, ncols);
 
-  ## The cells, as wide as the block or four, whichever is the greater
-  width = max (ncols, 4);
-  C = [pad(width, 'Random numbers'); pad(width); ...
-       pad(width, 'Distribution', pd.DistributionName); ...
-       named(width, names, PARAMS); ...
-       pad(width, 'Size', nrows, 'by', ncols); ...
-       pad(width, 'Seed', SEED); pad(width); ...
-       [num2cell(values), cell(nrows, width - ncols)]];
+  ## The numbers, and nothing besides
+  C = num2cell (random (pd, nrows, ncols));
 
-endfunction
-
-## A row per parameter, named as makedist names it
-function R = named (width, names, values)
-  R = cell (numel (names), width);
-  for ii = 1:numel (names)
-    R(ii,1:2) = {names{ii}, values(ii)};
-  endfor
 endfunction
 
 ## A whole count of one or more
@@ -152,81 +141,78 @@ function R = pad (width, varargin)
 endfunction
 
 %!shared C
-%! C = octave_calc_random ('Normal', [5, 2], 3, 4, 7);
+%! C = octave_calc_random ('Normal', 3, 4, 7, 5, 2);
 %!test
-%! assert_equal (size (C), [11, 4]);
+%! ## The draw is the whole of it: the size asked for, and no lines about it
+%! assert_equal (size (C), [3, 4]);
 %!test
-%! assert_equal (C(1,1), {'Random numbers'});
-%!test
-%! assert_equal (C(3,1:2), {'Distribution', 'Normal'});
-%!test
-%! assert_equal (C(4:5,1:2), {'mu', 5; 'sigma', 2});
-%!test
-%! assert_equal (C(6,1:4), {'Size', 3, 'by', 4});
-%!test
-%! assert_equal (C(7,1:2), {'Seed', 7});
+%! assert_equal (all (cellfun (@isnumeric, C(:))), true);
 %!test
 %! ## The same seed draws the same numbers again
-%! R = octave_calc_random ('Normal', [5, 2], 3, 4, 7);
-%! assert_equal (C(9:11,:), R(9:11,:));
+%! R = octave_calc_random ('Normal', 3, 4, 7, 5, 2);
+%! assert_equal (C, R);
 %!test
 %! ## A different seed does not
-%! R = octave_calc_random ('Normal', [5, 2], 3, 4, 8);
-%! assert_equal (isequal (C(9:11,:), R(9:11,:)), false);
+%! R = octave_calc_random ('Normal', 3, 4, 8, 5, 2);
+%! assert_equal (isequal (C, R), false);
+%!test
+%! ## The parameters reach the draw
+%! R = cell2mat (octave_calc_random ('Normal', 1, 2000, 7, 100, 1));
+%! assert_equal (abs (mean (R) - 100) < 1, true);
 
 %!test
-%! ## A seed that was not given is chosen and written out just the same
-%! R = octave_calc_random ('Normal', [5, 2], 2, 2);
-%! assert_equal (R{7,1}, 'Seed');
+%! ## One cell is a draw like any other
+%! R = octave_calc_random ('Normal', 1, 1, 7, 5, 2);
+%! assert_equal (size (R), [1, 1]);
 %!test
-%! R = octave_calc_random ('Normal', [5, 2], 2, 2);
-%! assert_equal (isnumeric (R{7,2}) && R{7,2} >= 0, true);
+%! ## and a column
+%! R = octave_calc_random ('Normal', 10, 1, 7, 5, 2);
+%! assert_equal (size (R), [10, 1]);
+
 %!test
-%! ## and drawing again under it gives those numbers back
-%! R = octave_calc_random ('Normal', [5, 2], 2, 2);
-%! S = octave_calc_random ('Normal', [5, 2], 2, 2, R{7,2});
-%! assert_equal (R(9:10,:), S(9:10,:));
+%! ## A seed that was not given is taken from the clock and still draws
+%! R = octave_calc_random ('Normal', 2, 2, [], 5, 2);
+%! assert_equal (size (R), [2, 2]);
+%!test
+%! ## An empty seed is what the dialog sends for a seed left blank
+%! R = octave_calc_random ('Normal', 2, 2, '', 5, 2);
+%! assert_equal (all (cellfun (@isnumeric, R(:))), true);
 
 %!test
 %! ## A Poisson draw goes through randp, which rand and randn do not seed
-%! R = octave_calc_random ('Poisson', 4, 1, 8, 3);
-%! S = octave_calc_random ('Poisson', 4, 1, 8, 3);
-%! assert_equal (R(8,:), S(8,:));
+%! R = octave_calc_random ('Poisson', 1, 8, 3, 4);
+%! S = octave_calc_random ('Poisson', 1, 8, 3, 4);
+%! assert_equal (R, S);
 %!test
 %! ## and a gamma draw through randg
-%! R = octave_calc_random ('Gamma', [2, 3], 1, 8, 3);
-%! S = octave_calc_random ('Gamma', [2, 3], 1, 8, 3);
-%! assert_equal (R(9,:), S(9,:));
+%! R = octave_calc_random ('Gamma', 1, 8, 3, 2, 3);
+%! S = octave_calc_random ('Gamma', 1, 8, 3, 2, 3);
+%! assert_equal (R, S);
 
 %!test
-%! ## The block is as wide as the draw where that is wider than the heading
-%! R = octave_calc_random ('Normal', [5, 2], 2, 7, 1);
-%! assert_equal (size (R), [10, 7]);
-%!test
-%! ## and four wide where it is not
-%! R = octave_calc_random ('Normal', [5, 2], 2, 1, 1);
-%! assert_equal (size (R), [10, 4]);
-
-%!test
-%! ## Every parameter is named as makedist names it
-%! R = octave_calc_random ('Stable', [1.5, 0, 1, 0], 2, 2, 1);
-%! assert_equal (R(4:7,1), {'alpha'; 'beta'; 'gam'; 'delta'});
+%! ## Every parameter reaches the distribution it names
+%! R = octave_calc_random ('Stable', 2, 2, 1, 1.5, 0, 1, 0);
+%! assert_equal (size (R), [2, 2]);
 
 %!error<octave_calc_random: invalid number of input arguments.> ...
-%! octave_calc_random ('Normal', [5, 2], 3)
+%! octave_calc_random ('Normal', 3, 4)
 %!error<octave_calc_random: DISTNAME must be a distribution makedist takes.> ...
-%! octave_calc_random ('Gaussian', [5, 2], 3, 4)
-%!error<octave_calc_random: PARAMS must be a row of numbers.> ...
-%! octave_calc_random ('Normal', 'five', 3, 4)
+%! octave_calc_random ('Gaussian', 3, 4, [], 5, 2)
+%!error<octave_calc_random: each parameter must be one number.> ...
+%! octave_calc_random ('Normal', 3, 4, [], 'five', 2)
+%!error<octave_calc_random: each parameter must be one number.> ...
+%! octave_calc_random ('Normal', 3, 4, [], [5, 1], 2)
 %!error<octave_calc_random: NROWS must be a whole number of 1 or more.> ...
-%! octave_calc_random ('Normal', [5, 2], 0, 4)
+%! octave_calc_random ('Normal', 0, 4, [], 5, 2)
 %!error<octave_calc_random: NCOLS must be a whole number of 1 or more.> ...
-%! octave_calc_random ('Normal', [5, 2], 3, 1.5)
+%! octave_calc_random ('Normal', 3, 1.5, [], 5, 2)
 %!error<octave_calc_random: 1000 by 1000 is 1000000 numbers and the most that can be written is 100000.> ...
-%! octave_calc_random ('Normal', [5, 2], 1000, 1000)
+%! octave_calc_random ('Normal', 1000, 1000, [], 5, 2)
 %!error<octave_calc_random: SEED must be a whole number of 0 or more, or nothing at all.> ...
-%! octave_calc_random ('Normal', [5, 2], 3, 4, -1)
-%!error<octave_calc_random: Normal takes 2 parameters, mu, sigma, and 1 were given.> ...
-%! octave_calc_random ('Normal', 5, 3, 4)
-%!error<octave_calc_random: Poisson takes 1 parameters, lambda, and 2 were given.> ...
-%! octave_calc_random ('Poisson', [4, 5], 3, 4)
+%! octave_calc_random ('Normal', 3, 4, -1, 5, 2)
+%!error<octave_calc_random: Normal takes 2 parameters, mu, sigma, and 1 was given.> ...
+%! octave_calc_random ('Normal', 3, 4, [], 5)
+%!error<octave_calc_random: Poisson takes 1 parameter, lambda, and 2 were given.> ...
+%! octave_calc_random ('Poisson', 3, 4, [], 4, 5)
+%!error<octave_calc_random: Poisson takes 1 parameter, lambda, and 0 were given.> ...
+%! octave_calc_random ('Poisson', 3, 4, [])
