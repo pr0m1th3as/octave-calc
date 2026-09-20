@@ -91,6 +91,26 @@ SIZE_INTRO = ('Two ways to set the size of the returned cell range: select '
               'the range itself, or select one cell and set the Rows and '
               'Columns below.')
 
+# Said at the top of the Custom analysis's own side, where the input range
+# would be, since nothing else says what a slot may hold.
+CUSTOM_INTRO = (
+  'Each input holds a range of cells, picked with the button beside it, or '
+  'a value typed out: a number, text in quotes, true or false, [], a matrix '
+  'such as [1, 2; 3, 4], or a range such as 1:5.  Fill them from the first; '
+  'only the filled ones are passed, in order, and the pairs after them.')
+
+# What the mouse is told it is picking, by field.
+PICK_TITLE = dict (
+  [('input', 'Input range'), ('output', 'Results to')]
+  + [('input%d' % (n + 1), 'Input %d' % (n + 1)) for n in range (4)]
+  + [('output%d' % (n + 1), 'Output %d' % (n + 1)) for n in range (3)])
+
+# Said under the output slots.
+OUTPUT_HINT = (
+  'Fill them from the first: the function is asked for as many outputs as '
+  'you fill.  A single cell takes an output of any size; a range of cells '
+  'must match the size of the output exactly.')
+
 # A note beside an option's name is italic.  A FixedText is one font
 # throughout, so the name and the note are two controls, not one label.
 ITALIC = uno.Enum ('com.sun.star.awt.FontSlant', 'ITALIC')
@@ -202,6 +222,22 @@ class _Chosen (unohelper.Base, XItemListener):
     pass
 
 
+class _Pressed (unohelper.Base, XActionListener):
+  """A button that does its work and leaves the dialog standing."""
+
+  def __init__ (self, fn):
+    self.fn = fn
+
+  def actionPerformed (self, unused):
+    try:
+      self.fn ()
+    except Exception:
+      traceback.print_exc ()
+
+  def disposing (self, unused):
+    pass
+
+
 class _Typed (unohelper.Base, XTextListener):
   """A field whose text changes the rest of the dialog."""
 
@@ -230,7 +266,7 @@ class _Picked (unohelper.Base, XRangeSelectionListener):
     self.controller.removeRangeSelectionListener (self)
     answers = dict (self.answers)
     if (reference):
-      answers[self.field] = plain (reference)
+      put (answers, self.field, plain (reference))
     self.analysis.post (lambda: self.analysis.prompt (answers))
 
   def done (self, event):
@@ -241,6 +277,24 @@ class _Picked (unohelper.Base, XRangeSelectionListener):
 
   def disposing (self, unused):
     pass
+
+
+# The ranges a Custom analysis picks are options and not answers of their
+# own, so a field is read and written by name either way.
+def held (answers, field):
+  """What the field FIELD holds."""
+  if (field in ('input', 'output')):
+    return answers.get (field, '')
+  return answers['options'].get (field, '')
+
+
+def put (answers, field, value):
+  """Put VALUE in the field FIELD."""
+  if (field in ('input', 'output')):
+    answers[field] = value
+    return
+  answers['options'] = dict (answers['options'])
+  answers['options'][field] = value
 
 
 def plain (reference):
@@ -284,6 +338,15 @@ class Analysis:
   @property
   def function (self):
     return octave_stats.ANALYSES[self.command]['function']
+
+  def settings_list (self, name):
+    """The string list the setting NAME holds, or nothing where it cannot be
+    read; a dialog that cannot reach the settings still opens."""
+    try:
+      return octave_settings.listed (self.ctx, name)
+    except Exception:
+      traceback.print_exc ()
+      return []
 
   def create (self, service):
     return self.ctx.ServiceManager.createInstanceWithContext (service,
@@ -345,7 +408,7 @@ class Analysis:
     self.command = answers['command']
     if (action == 'cancel'):
       return
-    if (action in ('input', 'output')):
+    if (action not in ('ok', 'cancel')):
       self.pick (action, answers)
       return
     if (answers['command'] is None):
@@ -381,6 +444,23 @@ class Analysis:
     add ('FixedText', 'analysis_label', 6, 87, 80, 10, Label = 'Analysis:')
     add ('ListBox', 'analysis', 6, 98, 190, 60)
     add ('FixedText', 'detail', 6, 162, 190, 208, MultiLine = True)
+    # Custom analysis alone: the folders and the functions stand where the
+    # analysis list and the passage stand, since the category has no
+    # analyses of ours to list
+    add ('FixedText', 'folders_label', 6, 87, 190, 10, Label = 'Folders:')
+    add ('ListBox', 'folders', 6, 98, 190, LIST_ROWS)
+    add ('Button', 'folder_browse', 6, 145, 60, 14, Label = 'Browse...')
+    add ('Button', 'folder_drop', 70, 145, 60, 14, Label = 'Remove')
+    add ('FixedText', 'function_label', 6, 165, 190, 10, Label = 'Function:')
+    add ('ComboBox', 'function', 6, 176, 130, 14, Dropdown = True,
+         HelpText = 'A function from the chosen folder, or, where the '
+                    'sandbox is running, the name of any core or package '
+                    'function.')
+    add ('Button', 'function_add', 140, 176, 56, 14, Label = 'Add')
+    add ('FixedText', 'customs_label', 6, 196, 190, 10,
+         Label = 'Available custom analyses:')
+    add ('ListBox', 'customs', 6, 207, 190, 120)
+    add ('Button', 'custom_drop', 6, 331, 60, 14, Label = 'Remove')
     add ('FixedText', 'input_label', 206, 8, 80, 10, Label = 'Input range:')
     add ('Edit', 'input', 206, 19, 140, 14, Text = answers['input'],
          HelpText = 'The range holding the data, such as Sheet1.A1:C20, or '
@@ -429,6 +509,32 @@ class Analysis:
          MultiLine = True)
     add ('FixedText', 'options_label', 206, 160, 208, 10, Label = 'Options:',
          FontWeight = BOLD)
+    # Custom analysis draws its own right side: two headed groups, a range
+    # button on every slot, and no hint under each, which the shared option
+    # rows have no room for
+    add ('FixedText', 'custom_intro', 206, 8, 208, 40, MultiLine = True,
+         Label = CUSTOM_INTRO)
+    add ('FixedText', 'in_head', 206, 52, 208, 10, FontWeight = BOLD,
+         Label = 'Input Arguments:')
+    for place in range (octave_stats.CUSTOM_SLOTS):
+      top = 66 + 18 * place
+      add ('FixedText', 'in%d_label' % place, 206, top + 2, 52, 10,
+           Label = 'Input %d:' % (place + 1))
+      add ('Edit', 'in%d_text' % place, 260, top, 112, 12)
+      add ('Button', 'in%d_pick' % place, 376, top - 1, 38, 14, Label = '...')
+    add ('FixedText', 'pairs_label', 206, 142, 52, 10, Label = 'Pairs:')
+    add ('Edit', 'pairs_text', 260, 140, 154, 12)
+    add ('FixedText', 'pairs_hint', 206, 156, 208, 10)
+    add ('FixedText', 'out_head', 206, 176, 208, 10, FontWeight = BOLD,
+         Label = 'Output Arguments:')
+    for place in range (octave_stats.CUSTOM_OUTPUTS):
+      top = 190 + 18 * place
+      add ('FixedText', 'out%d_label' % place, 206, top + 2, 52, 10,
+           Label = 'Output %d:' % (place + 1))
+      add ('Edit', 'out%d_text' % place, 260, top, 112, 12)
+      add ('Button', 'out%d_pick' % place, 376, top - 1, 38, 14, Label = '...')
+    add ('FixedText', 'out_hint', 206, 248, 208, 20, MultiLine = True,
+         Label = OUTPUT_HINT)
     for slot in range (OPTION_SLOTS):
       top = 168 + 24 * slot
       add ('FixedText', 'option%d_label' % slot, 206, top + 2, 100, 10)
@@ -463,7 +569,12 @@ class Analysis:
     dialog.setModel (model)
     dialog.createPeer (self.create ('com.sun.star.awt.Toolkit'), None)
     state = {'action': 'cancel', 'command': answers['command'],
-             'commands': (), 'options': dict (answers['options'])}
+             'commands': (), 'options': dict (answers['options']),
+             'folders': self.settings_list ('Folders'),
+             'customs': self.settings_list ('Analyses'),
+             'function': answers.get ('function', '')}
+    if (state['function'] not in state['customs']):
+      state['function'] = state['customs'][0] if state['customs'] else ''
 
     def part (name):
       return dialog.getControl (name)
@@ -473,7 +584,8 @@ class Analysis:
       list to choose from, or a field to type in.  Every row is emptied
       before it is filled, so that nothing of the analysis before it is left
       behind where this one declares less."""
-      options = octave_stats.slotted (command) if command else ()
+      own = bool (command) and octave_stats.ANALYSES[command].get ('custom')
+      options = octave_stats.slotted (command) if command and not own else ()
       part ('options_label').setVisible (bool (options))
       if (options):
         part ('options_label').getModel ().Label = octave_stats.heading (
@@ -610,6 +722,122 @@ class Analysis:
           state['options'].get (seeded, seed['default']))
         part ('seed').getModel ().HelpText = seed.get ('help', seed['hint'])
 
+    def in_folder (path):
+      """The functions the folder PATH holds, by name, in order."""
+      try:
+        return sorted (name[:-2] for name in os.listdir (path)
+                       if name.endswith ('.m') and not name.startswith ('.'))
+      except Exception:
+        return []
+
+    def show_custom (command, refill = True):
+      """The folders and the functions, in place of the analysis list and
+      the passage, for the one category that has neither."""
+      own = bool (command) and octave_stats.ANALYSES[command].get ('custom')
+      for name in ('folders_label', 'folders', 'folder_browse', 'folder_drop',
+                   'function_label', 'function', 'function_add',
+                   'customs_label', 'customs', 'custom_drop'):
+        part (name).setVisible (bool (own))
+      for name in ('analysis_label', 'analysis', 'detail'):
+        part (name).setVisible (not own)
+      # Its own right side stands in place of the results range and the
+      # option rows, which say nothing it needs
+      for name in ('custom_intro', 'in_head', 'pairs_label', 'pairs_text',
+                   'pairs_hint', 'out_head', 'out_hint'):
+        part (name).setVisible (bool (own))
+      for place in range (octave_stats.CUSTOM_SLOTS):
+        for kind in ('label', 'text', 'pick'):
+          part ('in%d_%s' % (place, kind)).setVisible (bool (own))
+      for place in range (octave_stats.CUSTOM_OUTPUTS):
+        for kind in ('label', 'text', 'pick'):
+          part ('out%d_%s' % (place, kind)).setVisible (bool (own))
+      for name in ('output_label', 'output', 'output_pick', 'output_hint'):
+        part (name).setVisible (not own)
+      if (not own):
+        return
+      part ('pairs_hint').getModel ().Label = octave_stats.option_named (
+        command, 'pairs')['hint']
+      for place in range (octave_stats.CUSTOM_SLOTS):
+        part ('in%d_text' % place).getModel ().Text = state['options'].get (
+          'input%d' % (place + 1), '')
+      part ('pairs_text').getModel ().Text = state['options'].get ('pairs', '')
+      for place in range (octave_stats.CUSTOM_OUTPUTS):
+        part ('out%d_text' % place).getModel ().Text = state['options'].get (
+          'output%d' % (place + 1), '')
+      if (not refill):
+        return
+      part ('folders').getModel ().StringItemList = tuple (state['folders'])
+      part ('customs').getModel ().StringItemList = tuple (state['customs'])
+      if (state['customs']):
+        held = state['function']
+        part ('customs').getModel ().SelectedItems = (
+          state['customs'].index (held) if held in state['customs'] else 0,)
+      offer_functions ()
+
+    def offer_functions ():
+      """The functions of the chosen folder, or of every folder where none
+      is chosen, offered in the box a name may also be typed into."""
+      at = part ('folders').getSelectedItemPos ()
+      folders = ([state['folders'][at]] if 0 <= at < len (state['folders'])
+                 else state['folders'])
+      found = sorted (set (sum ((in_folder (path) for path in folders), [])))
+      part ('function').getModel ().StringItemList = tuple (found)
+
+    def keep (name, values):
+      """Put VALUES in the setting NAME, saying so where it cannot be
+      done."""
+      try:
+        octave_settings.relist (self.ctx, name, values)
+        return True
+      except Exception as err:
+        self.message ('The settings could not be changed: %s' % err)
+        return False
+
+    def browse ():
+      """Add a folder, starting at the user's own."""
+      picker = self.create ('com.sun.star.ui.dialogs.FolderPicker')
+      picker.setDisplayDirectory (
+        uno.systemPathToFileUrl (os.path.expanduser ('~')))
+      if (picker.execute () != 1):
+        return
+      path = uno.fileUrlToSystemPath (picker.getDirectory ())
+      if (path in state['folders']):
+        return
+      if (keep ('Folders', state['folders'] + [path])):
+        state['folders'] = state['folders'] + [path]
+        show_custom (state['command'])
+
+    def drop_folder ():
+      at = part ('folders').getSelectedItemPos ()
+      if (not 0 <= at < len (state['folders'])):
+        return
+      left = [path for n, path in enumerate (state['folders']) if n != at]
+      if (keep ('Folders', left)):
+        state['folders'] = left
+        show_custom (state['command'])
+
+    def add_function ():
+      """Put the named function among the custom analyses."""
+      name = part ('function').getModel ().Text.strip ()
+      if (not name):
+        return
+      if (name in state['customs']):
+        return
+      if (keep ('Analyses', state['customs'] + [name])):
+        state['customs'] = state['customs'] + [name]
+        state['function'] = name
+        show_custom (state['command'])
+
+    def drop_custom ():
+      at = part ('customs').getSelectedItemPos ()
+      if (not 0 <= at < len (state['customs'])):
+        return
+      left = [name for n, name in enumerate (state['customs']) if n != at]
+      if (keep ('Analyses', left)):
+        state['customs'] = left
+        state['function'] = left[0] if left else ''
+        show_custom (state['command'])
+
     def show (command):
       """Everything that follows from the chosen analysis."""
       state['command'] = command
@@ -638,6 +866,7 @@ class Analysis:
         for name, choice in zip (RADIO_NAMES, octave_stats.BY):
           part (name).getModel ().State = int (choice == analysis['layouts'][0])
       show_size (command)
+      show_custom (command)
       show_options (command)
 
     def show_category (category, command = None):
@@ -677,6 +906,17 @@ class Analysis:
     part ('analysis').addItemListener (_Chosen (analysis_chosen))
     part ('output').addTextListener (
       _Typed (lambda: show_size (state['command'], False)))
+    part ('folders').addItemListener (_Chosen (offer_functions))
+    for name, action in (('folder_browse', browse), ('folder_drop', drop_folder),
+                         ('function_add', add_function),
+                         ('custom_drop', drop_custom)):
+      part (name).addActionListener (_Pressed (action))
+    for place in range (octave_stats.CUSTOM_SLOTS):
+      part ('in%d_pick' % place).addActionListener (
+        _Select (dialog, state, 'input%d' % (place + 1)))
+    for place in range (octave_stats.CUSTOM_OUTPUTS):
+      part ('out%d_pick' % place).addActionListener (
+        _Select (dialog, state, 'output%d' % (place + 1)))
     for field in ('input', 'output'):
       part (field + '_pick').addActionListener (_Select (dialog, state, field))
     ended = dialog.execute ()
@@ -716,10 +956,22 @@ class Analysis:
         values[name] = part (control).getModel ().Text.strip ()
     if (analysis and analysis.get ('seeded')):
       values[analysis['seeded']] = part ('seed').getModel ().Text.strip ()
+    at = part ('customs').getSelectedItemPos ()
+    if (0 <= at < len (state['customs'])):
+      state['function'] = state['customs'][at]
+    if (command and octave_stats.ANALYSES[command].get ('custom')):
+      for place in range (octave_stats.CUSTOM_SLOTS):
+        values['input%d' % (place + 1)] = (
+          part ('in%d_text' % place).getModel ().Text.strip ())
+      values['pairs'] = part ('pairs_text').getModel ().Text.strip ()
+      for place in range (octave_stats.CUSTOM_OUTPUTS):
+        values['output%d' % (place + 1)] = (
+          part ('out%d_text' % place).getModel ().Text.strip ())
     answers = {'command': command,
                'input': part ('input').getModel ().Text.strip (),
                'output': part ('output').getModel ().Text.strip (),
-               'by': by, 'options': values}
+               'by': by, 'options': values,
+               'function': state['function']}
     dialog.dispose ()
     if (state['action'] != 'cancel'):
       return state['action'], answers
@@ -733,8 +985,8 @@ class Analysis:
     try:
       controller.addRangeSelectionListener (listener)
       controller.startRangeSelection ((
-        prop ('InitialValue', answers[field]),
-        prop ('Title', 'Input range' if field == 'input' else 'Results to'),
+        prop ('InitialValue', held (answers, field)),
+        prop ('Title', PICK_TITLE.get (field, 'Range')),
         prop ('CloseOnMouseRelease', True)))
     except Exception as err:
       controller.removeRangeSelectionListener (listener)
@@ -786,6 +1038,48 @@ class Analysis:
     answers['options'][named[1]] = str (width)
     return answers
 
+  def custom_corners (self, answers):
+    """Where each output of a Custom analysis goes, as the cell it is
+    written from and the size it must be, which is nothing where a single
+    cell lets it be any size.  Raises ValueError."""
+    held = answers['options']
+    texts = [held.get ('output%d' % (place + 1), '').strip ()
+             for place in range (octave_stats.CUSTOM_OUTPUTS)]
+    octave_stats.filled (texts, 'output')
+    if (not texts[0]):
+      raise ValueError ('no output is given; the first says where the '
+                        "function's first result is written.")
+    corners = []
+    for place, text in enumerate (texts):
+      if (not text):
+        continue
+      found = self.resolve (text, 'output %d' % (place + 1))
+      at = found.getRangeAddress ()
+      size = (at.EndRow - at.StartRow + 1, at.EndColumn - at.StartColumn + 1)
+      corners.append ((found, None if size == (1, 1) else size))
+    return corners
+
+  def custom_args (self, answers):
+    """The arguments of a Custom analysis: what its inputs hold, each read
+    as a literal or resolved as a range.  Raises ValueError."""
+    if (not answers.get ('function')):
+      raise ValueError ('no function is chosen.  Add one on the left, from '
+                        'a folder of your own.')
+    held = answers['options']
+
+    def resolve (text, what, refusal):
+      try:
+        found = self.resolve (text, what)
+      except ValueError:
+        raise ValueError ('%s holds neither a range of this document nor a '
+                          'value: %s' % (what, refusal))
+      return octave_core.plain_range (found.getDataArray ())
+
+    return octave_stats.custom_args (
+      [held.get ('input%d' % (place + 1), '')
+       for place in range (octave_stats.CUSTOM_SLOTS)],
+      held.get ('pairs', ''), resolve)
+
   def launch (self, answers, interactive):
     """Check the answers, then run the analysis on a worker thread."""
     self.command = answers['command']
@@ -794,9 +1088,15 @@ class Analysis:
     by = answers['by'] if answers['by'] in layouts else (layouts or ('',))[0]
     where = None
     try:
-      corner = self.resolve (answers['output'], 'results range')
-      answers = self.sized (answers, corner)
-      args = octave_stats.option_args (self.command, answers['options'])
+      if (analysis.get ('custom')):
+        corners = self.custom_corners (answers)
+        corner = corners[0][0]
+        args = self.custom_args (answers)
+      else:
+        corner = self.resolve (answers['output'], 'results range')
+        corners = [(corner, None)]
+        answers = self.sized (answers, corner)
+        args = octave_stats.option_args (self.command, answers['options'])
       if (analysis['input'] != 'none'):
         source = self.resolve (answers['input'], 'input range')
         where = source.getRangeAddress ()
@@ -827,16 +1127,30 @@ class Analysis:
       self.message ('An analysis is already running.  Wait for it to finish.',
                     'INFOBOX')
       return
-    function = self.function
+    function = (answers.get ('function') if analysis.get ('custom')
+                else self.function)
+    # A function of the user's own folders runs wherever the menu does; any
+    # other name is core's or a package's, and reaching one by name needs a
+    # sandbox, since the arguments come from the document
+    own = (not analysis.get ('custom')
+           or any (os.path.exists (os.path.join (folder, function + '.m'))
+                   for folder in settings['folders']))
     null_date = octave_core.iso_date (self.document.NullDate)
 
     def work ():
       try:
         runner = octave_core.server ('statistics', settings)
-        outputs = runner.call (function, args, null_date)
-        table = octave_stats.results (outputs)
-        self.post (lambda: self.land (where, corner, table, answers,
-                                      interactive))
+        if (not own and runner.state != 'active'):
+          raise RuntimeError (
+            '%s is not in your own folders, and reaching a core or package '
+            'function by name needs the sandbox, which is not running here. '
+            'Add the folder that holds it instead.' % function)
+        outputs = runner.call (function, args, null_date, len (corners))
+        tables = [octave_core.output_rows (outputs[n])
+                  for n in range (len (corners))]
+        placed = [(spot, table, wanted) for (spot, wanted), table
+                  in zip (corners, tables)]
+        self.post (lambda: self.land (where, placed, answers, interactive))
         # A sandbox that should work and does not is said once a session
         warning = octave_core.failed_warning (runner)
         if (warning):
@@ -849,36 +1163,58 @@ class Analysis:
 
     threading.Thread (target = work, daemon = True).start ()
 
-  def land (self, where, corner, table, answers, interactive):
-    """Main thread: place TABLE from the cell CORNER now that its size is
-    known, write it as one undoable action, and select it, as Calc does with
-    its own results.  WHERE is the input range's address."""
-    top = corner.getRangeAddress ()
-    sheet = self.document.Sheets.getByIndex (top.Sheet)
-    height, width = len (table), len (table[0])
-    try:
-      block = sheet.getCellRangeByPosition (
-        top.StartColumn, top.StartRow, top.StartColumn + width - 1,
-        top.StartRow + height - 1)
-    except Exception:
-      self.refuse ('the results, %d rows by %d columns, do not fit on the '
-                   'sheet from %s.' % (height, width,
-                                       plain (corner.AbsoluteName)),
-                   answers, interactive)
-      return
-    if (where is not None
-        and octave_stats.overlaps (bounds (where),
-                                   bounds (block.getRangeAddress ()))):
-      self.refuse ('the results, %s, would overwrite the input range.'
-                   % plain (block.AbsoluteName), answers, interactive)
-      return
-    if (interactive and block.queryContentCells (
-          VALUE | DATETIME | STRING | FORMULA).getRangeAddresses ()):
-      if (self.message ('The results range %s is not empty.  Overwrite it?'
-                        % plain (block.AbsoluteName), 'QUERYBOX',
-                        BUTTONS_YES_NO) != YES):
-        self.post (lambda: self.prompt (answers))
+  def land (self, where, placed, answers, interactive):
+    """Main thread: write each table from the cell it was given, now that its
+    size is known, as one undoable action, and select the first, as Calc does
+    with its own results.  PLACED is the corner, the table and the size the
+    corner asks for, which is nothing where it is a single cell.  WHERE is
+    the input range's address."""
+    blocks = []
+    for corner, table, wanted in placed:
+      top = corner.getRangeAddress ()
+      sheet = self.document.Sheets.getByIndex (top.Sheet)
+      height, width = len (table), len (table[0]) if table else 0
+      at = plain (corner.AbsoluteName)
+      if (wanted is not None and wanted != (height, width)):
+        self.refuse ('%s is %d rows by %d columns and the result written '
+                     'there is %d by %d; pick a single cell to let it be any '
+                     'size.' % (at, wanted[0], wanted[1], height, width),
+                     answers, interactive)
         return
+      try:
+        block = sheet.getCellRangeByPosition (
+          top.StartColumn, top.StartRow, top.StartColumn + width - 1,
+          top.StartRow + height - 1)
+      except Exception:
+        self.refuse ('the results, %d rows by %d columns, do not fit on the '
+                     'sheet from %s.' % (height, width, at), answers,
+                     interactive)
+        return
+      if (where is not None
+          and octave_stats.overlaps (bounds (where),
+                                     bounds (block.getRangeAddress ()))):
+        self.refuse ('the results, %s, would overwrite the input range.'
+                     % plain (block.AbsoluteName), answers, interactive)
+        return
+      blocks.append ((block, table))
+    for first in range (len (blocks)):
+      for second in range (first + 1, len (blocks)):
+        if (octave_stats.overlaps (
+              bounds (blocks[first][0].getRangeAddress ()),
+              bounds (blocks[second][0].getRangeAddress ()))):
+          self.refuse ('output %d and output %d would be written over each '
+                       'other.' % (first + 1, second + 1), answers,
+                       interactive)
+          return
+    if (interactive):
+      for block, table in blocks:
+        if (block.queryContentCells (
+              VALUE | DATETIME | STRING | FORMULA).getRangeAddresses ()):
+          if (self.message ('The results range %s is not empty.  Overwrite '
+                            'it?' % plain (block.AbsoluteName), 'QUERYBOX',
+                            BUTTONS_YES_NO) != YES):
+            self.post (lambda: self.prompt (answers))
+            return
 
     # Cell by cell, since Calc's undo of setDataArray restores nothing.  A
     # value set directly cannot be an error, so a missing value is =NA(), and
@@ -887,25 +1223,26 @@ class Analysis:
     undo = self.document.getUndoManager ()
     undo.enterUndoContext (self.title)
     try:
-      block.clearContents (VALUE | DATETIME | STRING | FORMULA)
-      for r, row in enumerate (table):
-        for c, value in enumerate (row):
-          cell = block.getCellByPosition (c, r)
-          if (isinstance (value, str)):
-            if (value != ''):
-              cell.setString (value)
-          elif (value != value):
-            cell.setFormula ('=NA()')
-          elif (value == float ('inf')):
-            cell.setString ('Inf')
-          elif (value == float ('-inf')):
-            cell.setString ('-Inf')
-          else:
-            cell.setValue (value)
+      for block, table in blocks:
+        block.clearContents (VALUE | DATETIME | STRING | FORMULA)
+        for r, row in enumerate (table):
+          for c, value in enumerate (row):
+            cell = block.getCellByPosition (c, r)
+            if (isinstance (value, str)):
+              if (value != ''):
+                cell.setString (value)
+            elif (value != value):
+              cell.setFormula ('=NA()')
+            elif (value == float ('inf')):
+              cell.setString ('Inf')
+            elif (value == float ('-inf')):
+              cell.setString ('-Inf')
+            else:
+              cell.setValue (value)
     finally:
       undo.leaveUndoContext ()
     try:
-      self.document.getCurrentController ().select (block)
+      self.document.getCurrentController ().select (blocks[0][0])
     except Exception:
       pass
 

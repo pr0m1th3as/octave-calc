@@ -26,6 +26,7 @@ analysis itself, grouping included, is the Octave function's.
 """
 
 import octave_core
+import octave_literal
 
 # The Octave package every analysis loads in its sandbox.
 PACKAGE = 'statistics'
@@ -77,7 +78,10 @@ CATEGORIES = {
     'Draws a sample from a distribution and the parameters you give it.',
   'Experimental design':
     'Plans a study before the data exist: how many observations are needed, '
-    'and which combinations to run.'}
+    'and which combinations to run.',
+  'Custom analysis':
+    'Runs one of your own Octave functions on the cells and values you give '
+    'it.'}
 
 
 # What the list under a category is called, where 'Analysis:' is wrong for
@@ -1033,6 +1037,45 @@ for _name, _detail, _parameters in GENERATORS:
                in _parameters)}
 
 
+# The Custom analysis, which runs the user's own function rather than one of
+# ours.  It has no Octave file of its own: the function is chosen in the
+# dialog, so 'custom' marks the entry and 'function' stays empty.  Its four
+# inputs and its pairs are read by custom_args, not by option_args.
+CUSTOM_SLOTS = 4
+CUSTOM_OUTPUTS = 3
+
+ANALYSES['Custom'] = {
+  'category': 'Custom analysis',
+  'input': 'none',
+  'title': 'Custom analysis',
+  'function': '',
+  'custom': True,
+  'detail': 'Runs one of your own Octave functions on the cells and values '
+            'you give it.\n\n'
+            'Add a folder on the left, then a function from it, and it joins '
+            'the list. Fill the inputs from the first: each holds a range '
+            'such as A1:B10, or a value typed out, such as 3, [1, 2; 3, 4], '
+            "1:5 or 'text'. Only the filled inputs are passed, in order.\n\n"
+            'What is typed is read, never run. The function must return '
+            'numbers or text laid out as cells.',
+  'layouts': (),
+  'heading': 'Inputs:',
+  'options': tuple (
+    {'name': 'input%d' % (place + 1), 'kind': 'text',
+     'label': 'Input %d:' % (place + 1),
+     'hint': ('A range such as A1:B10, or a value typed out.' if place == 0
+              else ''),
+     'default': ''}
+    for place in range (CUSTOM_SLOTS))
+    + ({'name': 'pairs', 'kind': 'text', 'label': 'Pairs:',
+        'hint': "Typed as a cell, such as {'Name', 2.3, 'Next', [2, 3]}.",
+        'default': ''},)
+    + tuple (
+    {'name': 'output%d' % (place + 1), 'kind': 'text',
+     'label': 'Output %d:' % (place + 1), 'hint': '', 'default': ''}
+    for place in range (CUSTOM_OUTPUTS))}
+
+
 def listed (command):
   """What the list calls COMMAND."""
   analysis = ANALYSES[command]
@@ -1079,6 +1122,44 @@ def slot_places (command):
 def heading (command):
   """What the option rows of COMMAND are called."""
   return ANALYSES[command].get ('heading', 'Options:')
+
+
+def filled (texts, noun):
+  """How many of TEXTS are filled, which must be the first of them.  A gap
+  is refused rather than passed as [], since a gap is a mistake and never a
+  value.  NOUN names them in the refusal."""
+  held, seen = 0, False
+  for place, text in reversed (list (enumerate (texts))):
+    if (text.strip ()):
+      seen = True
+      held = max (held, place + 1)
+    elif (seen):
+      raise ValueError ('%s %d is empty and %s %d is not; the %ss are '
+                        'filled from the first.'
+                        % (noun, place + 1, noun, place + 2, noun))
+  return held
+
+
+def custom_args (slots, pairs, resolve):
+  """The octave_call arguments of a Custom analysis: the filled SLOTS in the
+  order they are given, then the name and value PAIRS after the last of
+  them.  A slot holds a literal or a range reference, and RESOLVE turns a
+  reference into a range argument, raising ValueError where it is not one.
+
+  Slots fill from the first.  A filled slot after an empty one is refused
+  rather than passed as [], since a gap is a mistake and never a value."""
+  filled (slots, 'input')
+  args = []
+  for place, text in enumerate (slots):
+    if (not text.strip ()):
+      continue
+    try:
+      args.append (octave_literal.parse (text))
+    except ValueError as refusal:
+      args.append (resolve (text, 'input %d' % (place + 1), refusal))
+  if (pairs.strip ()):
+    args.extend (octave_literal.pairs (pairs))
+  return args
 
 
 def option_named (command, name):

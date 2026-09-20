@@ -224,9 +224,16 @@ class Packaged (unittest.TestCase):
     spec.loader.exec_module (self.build)
 
   def test_every_analysis_function_is_packaged (self):
+    """The Custom analysis apart, which runs the user's own function and
+    has no file of ours to package."""
     for command, analysis in octave_stats.ANALYSES.items ():
+      if (analysis.get ('custom')):
+        continue
       self.assertIn ('octave/%s.m' % analysis['function'],
                      self.build.CONTENT, command)
+
+  def test_the_custom_analysis_names_no_function_of_ours (self):
+    self.assertEqual (octave_stats.ANALYSES['Custom']['function'], '')
 
   def test_every_octave_file_is_packaged (self):
     for folder, published in (('octave', 'octave/%s'),
@@ -236,10 +243,90 @@ class Packaged (unittest.TestCase):
         if (name.endswith ('.m')):
           self.assertIn (published % name, self.build.CONTENT, name)
 
+  # The free-form workbench macro, which the Custom analysis replaces.  It
+  # is run from Tools > Macros and was never in the package; it goes when
+  # the Custom analysis lands.
+  RETIRED = ('octave_calc.py',)
+
+  def test_every_python_module_is_packaged (self):
+    """A module left out of the package is imported by nothing and the
+    component fails to load, which the dialog cannot report."""
+    for name in os.listdir (os.path.join (ROOT, 'python')):
+      if (name.endswith ('.py') and name not in self.RETIRED):
+        self.assertIn (name, self.build.CONTENT, name)
+
   def test_every_packaged_source_exists (self):
     for published, source in self.build.CONTENT.items ():
       if ('build' not in source):
         self.assertTrue (os.path.exists (source), published)
+
+
+class CustomArgs (unittest.TestCase):
+  """The Custom analysis builds its own arguments: what is typed is read as
+  a literal, and what is not a literal is a range the caller resolves."""
+
+  def resolve (self, text, what, refusal):
+    if (text.strip () == 'A1:B2'):
+      return {'type': 'range', 'rows': 1, 'cols': 1, 'cells': []}
+    raise ValueError ('the %s is not a range in this document.' % what)
+
+  def args (self, slots, pairs = ''):
+    return octave_stats.custom_args (slots, pairs, self.resolve)
+
+  def test_a_literal_is_read_here (self):
+    self.assertEqual (self.args (['3', '', '', '']),
+                      [{'type': 'number', 'value': 3.0}])
+
+  def test_what_is_not_a_literal_is_resolved (self):
+    self.assertEqual ([arg['type'] for arg in self.args (['A1:B2', '', '',
+                                                          ''])],
+                      ['range'])
+
+  def test_filled_slots_keep_their_order (self):
+    self.assertEqual ([arg['type'] for arg in self.args (['A1:B2', '3', '',
+                                                          ''])],
+                      ['range', 'number'])
+
+  def test_pairs_follow_the_last_slot (self):
+    self.assertEqual ([arg['type'] for arg in
+                       self.args (['A1:B2', '', '', ''], "{'N', 2}")],
+                      ['range', 'string', 'number'])
+
+  def test_pairs_alone (self):
+    self.assertEqual (len (self.args (['', '', '', ''], "{'N', 2}")), 2)
+
+  def test_nothing_at_all_passes_nothing (self):
+    self.assertEqual (self.args (['', '', '', '']), [])
+
+  def test_filled_counts_from_the_first (self):
+    self.assertEqual (octave_stats.filled (['a', 'b', '', ''], 'input'), 2)
+
+  def test_filled_counts_none (self):
+    self.assertEqual (octave_stats.filled (['', '', ''], 'output'), 0)
+
+  def test_filled_names_the_gap_in_its_own_words (self):
+    with self.assertRaises (ValueError) as raised:
+      octave_stats.filled (['D1', '', 'F1'], 'output')
+    self.assertEqual (str (raised.exception),
+                      'output 2 is empty and output 3 is not; the outputs '
+                      'are filled from the first.')
+
+  def test_a_gap_is_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      self.args (['', '3', '', ''])
+    self.assertEqual (str (raised.exception),
+                      'input 1 is empty and input 2 is not; the inputs are '
+                      'filled from the first.')
+
+  def test_a_later_gap_is_refused (self):
+    with self.assertRaises (ValueError):
+      self.args (['1', '2', '', '4'])
+
+  def test_neither_a_literal_nor_a_range_is_refused (self):
+    with self.assertRaises (ValueError) as raised:
+      self.args (['pi', '', '', ''])
+    self.assertEqual (str (raised.exception),
+                      'the input 1 is not a range in this document.')
 
 
 class DialogControls (unittest.TestCase):
@@ -300,7 +387,7 @@ class DialogControls (unittest.TestCase):
 
 class Registry (unittest.TestCase):
 
-  OPTIONAL = {'sized', 'seeded', 'listed', 'heading'}
+  OPTIONAL = {'sized', 'seeded', 'listed', 'heading', 'custom'}
 
   def test_every_analysis_is_complete (self):
     for command, analysis in octave_stats.ANALYSES.items ():
@@ -534,7 +621,7 @@ class Registry (unittest.TestCase):
                          <= set (option), option)
         self.assertIn (option['kind'],
                        ('choice', 'number', 'numbers', 'radios', 'checks',
-                        'fixed'),
+                        'text', 'fixed'),
                        option['name'])
         if (option['kind'] == 'radios'):
           self.assertEqual (len (option['choices']), 2, option['name'])

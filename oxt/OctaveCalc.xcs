@@ -16,6 +16,10 @@
    <info><desc>Folders holding your own Octave functions, as absolute paths. They are on the load path, ahead of the packages.</desc></info>
    <value/>
   </prop>
+  <prop oor:name="Analyses" oor:type="oor:string-list">
+   <info><desc>Your own functions offered under Custom analysis, one name each. They are added from that dialog, and each must be on the load path the folders above give.</desc></info>
+   <value/>
+  </prop>
   <prop oor:name="Packages" oor:type="oor:string-list">
    <info><desc>Installed Octave packages to load, in load order.</desc></info>
    <value/>
