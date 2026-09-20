@@ -86,7 +86,7 @@ LIST_LABEL = {'Random numbers': 'Available generators:'}
 
 # Option rows the dialog holds ready, since a control cannot be added once it
 # is open.  An analysis may draw no more options than this in them.
-OPTION_SLOTS = 6
+OPTION_SLOTS = 8
 
 # The longest note an option row can show beside its label without the field
 # to its right cutting it off, measured in characters against the width the
@@ -477,7 +477,9 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #             'accepts', the refusal's words, and reaches it as a number,
 #             whole when it holds 'whole', and the bound itself allowed where
 #             it holds 'atleast' or 'atmost'; 'numbers' holds the same and
-#             reaches the function as a range of one row; 'fixed' is never
+#             reaches the function as a range of one row; 'radios' holds two
+#             'choices' and is drawn as a button each, one above the other,
+#             where a list of two reads as more than it is; 'fixed' is never
 #             drawn and reaches the function as its default, as text
 ANALYSES = {
   'KruskalWallis': {
@@ -802,13 +804,16 @@ ANALYSES = {
               'fit is a block of cells.',
     'layouts': SAMPLE,
     'options': (DISTRIBUTION_FIT,
-                {'name': 'curve', 'kind': 'choice', 'label': 'Curve:',
-                 'hint': 'Whether to write the density and the cumulative '
-                         'probability of the fit as well.',
-                 'choices': (('none', 'the fit alone'),
-                             ('sample', 'at each value of the sample'),
+                {'name': 'curve', 'kind': 'radios', 'label': 'Curve at:',
+                 'hint': 'Where the curve is read.',
+                 'choices': (('sample', 'at each value of the sample'),
                              ('grid', 'at a hundred even points')),
-                 'default': 'none'},
+                 'default': 'sample'},
+                {'name': 'parts', 'kind': 'checks', 'label': 'Curve holds:',
+                 'hint': 'Tick none of them and the fit is written alone.',
+                 'choices': (('pdf', 'probability density'),
+                             ('cdf', 'cumulative probability')),
+                 'default': ''},
                 ALPHA_LEVEL)},
   'Isoutlier': {
     'category': 'Distribution fitting',
@@ -1046,8 +1051,20 @@ def slotted (command):
 
 def slots (option):
   """Option rows OPTION takes up.  A list drawn open rather than dropped
-  down is as tall as two of them."""
-  return 2 if option.get ('rows') else 1
+  down, and a stack of buttons, are each as tall as two of them; a stack of
+  boxes is as tall as it has boxes, and never less than two."""
+  if (option['kind'] == 'checks'):
+    return max (2, len (option['choices']))
+  return 2 if (option.get ('rows') or option['kind'] == 'radios') else 1
+
+
+def ticked (option, value):
+  """The choices of a 'checks' option that VALUE holds, in declared order.
+  VALUE is the ticked keys with a space between them, and nothing at all
+  where none is ticked."""
+  held = str (value).split ()
+  return tuple (choice for choice, unused in option['choices']
+                if choice in held)
 
 
 def slot_places (command):
@@ -1144,6 +1161,11 @@ def option_args (command, values):
     value = values.get (option['name'], option['default'])
     if (option['kind'] == 'fixed'):
       args.append ({'type': 'string', 'value': option['default']})
+      continue
+    # Ticked boxes reach the function as their keys with a space between
+    if (option['kind'] == 'checks'):
+      args.append ({'type': 'string',
+                    'value': ' '.join (ticked (option, value))})
       continue
     if (option['kind'] == 'number'):
       args.append ({'type': 'number', 'value': option_number (option, value)})

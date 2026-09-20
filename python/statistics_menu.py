@@ -95,6 +95,9 @@ SIZE_INTRO = ('Two ways to set the size of the returned cell range: select '
 # throughout, so the name and the note are two controls, not one label.
 ITALIC = uno.Enum ('com.sun.star.awt.FontSlant', 'ITALIC')
 
+# Boxes an option row holds ready for a 'checks' option to tick.
+CHECK_BOXES = 3
+
 # A list drawn open rather than dropped down, four rows tall and scrolling
 # past them.  A dropped-open list is a window the theme draws wider than the
 # box it came from and with a frame of its own, which an open one is not.
@@ -357,7 +360,7 @@ class Analysis:
     answers."""
     model = self.create ('com.sun.star.awt.UnoControlDialogModel')
     model.Title = MENU_TITLE
-    model.Width, model.Height = 420, 340
+    model.Width, model.Height = 420, 400
     order = [0]
 
     def add (kind, name, x, y, width, height, **properties):
@@ -377,7 +380,7 @@ class Analysis:
     add ('FixedText', 'category_detail', 6, 63, 190, 20, MultiLine = True)
     add ('FixedText', 'analysis_label', 6, 87, 80, 10, Label = 'Analysis:')
     add ('ListBox', 'analysis', 6, 98, 190, 60)
-    add ('FixedText', 'detail', 6, 162, 190, 148, MultiLine = True)
+    add ('FixedText', 'detail', 6, 162, 190, 208, MultiLine = True)
     add ('FixedText', 'input_label', 206, 8, 80, 10, Label = 'Input range:')
     add ('Edit', 'input', 206, 19, 140, 14, Text = answers['input'],
          HelpText = 'The range holding the data, such as Sheet1.A1:C20, or '
@@ -432,6 +435,15 @@ class Analysis:
       add ('ListBox', 'option%d_box' % slot, 310, top, 104, 12,
            Dropdown = True)
       add ('ListBox', 'option%d_list' % slot, 310, top, 104, LIST_ROWS)
+      # One button above the other, and one group: two radio buttons are
+      # grouped by following each other in tab order, so nothing may be
+      # added between them.  The hint of the row below carries the text.
+      add ('RadioButton', 'option%d_radio0' % slot, 216, top + 12, 198, 11)
+      add ('RadioButton', 'option%d_radio1' % slot, 216, top + 24, 198, 11)
+      # Boxes, each on or off by itself, so no two of them are a group
+      for box in range (CHECK_BOXES):
+        add ('CheckBox', 'option%d_check%d' % (slot, box), 216,
+             top + 12 + 12 * box, 198, 11)
       add ('Edit', 'option%d_text' % slot, 310, top, 104, 12)
       add ('FixedText', 'option%d_hint' % slot, 206, top + 14, 208, 10)
       # A row that carries a note reads "name: (what it is)", the note
@@ -441,9 +453,9 @@ class Analysis:
       add ('FixedText', 'option%d_note' % slot, 246, top + 2, 118, 10,
            FontSlant = ITALIC)
       add ('Edit', 'option%d_value' % slot, 368, top, 46, 12)
-    add ('Button', 'ok', 296, 316, 54, 16, Label = 'OK', DefaultButton = True,
+    add ('Button', 'ok', 296, 376, 54, 16, Label = 'OK', DefaultButton = True,
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType', 'OK'))
-    add ('Button', 'cancel', 356, 316, 54, 16, Label = 'Cancel',
+    add ('Button', 'cancel', 356, 376, 54, 16, Label = 'Cancel',
          PushButtonType = uno.Enum ('com.sun.star.awt.PushButtonType',
                                     'CANCEL'))
 
@@ -466,10 +478,17 @@ class Analysis:
       if (options):
         part ('options_label').getModel ().Label = octave_stats.heading (
           command)
-      at = dict (zip (octave_stats.slot_places (command) if command else (),
-                      options))
+      # Emptied whole before any of it is filled, since an option may write
+      # into the row below its own and the pass must not then undo it
       for slot in range (OPTION_SLOTS):
-        option = at.get (slot)
+        for kind in (['label', 'hint', 'box', 'text', 'list', 'name', 'note',
+                      'value', 'radio0', 'radio1']
+                     + ['check%d' % box for box in range (CHECK_BOXES)]):
+          part ('option%d_%s' % (slot, kind)).setVisible (False)
+        for kind in ('label', 'hint', 'name', 'note'):
+          part ('option%d_%s' % (slot, kind)).getModel ().Label = ''
+      for slot, option in zip (octave_stats.slot_places (command) if command
+                               else (), options):
         label, hint = (part ('option%d_label' % slot),
                        part ('option%d_hint' % slot))
         box, typed, listed = (part ('option%d_box' % slot),
@@ -478,13 +497,10 @@ class Analysis:
         name, note, value_of = (part ('option%d_name' % slot),
                                 part ('option%d_note' % slot),
                                 part ('option%d_value' % slot))
-        for control in (label, hint, box, typed, listed, name, note,
-                        value_of):
-          control.setVisible (False)
-        for control in (label, hint, name, note):
-          control.getModel ().Label = ''
-        if (option is None):
-          continue
+        buttons = (part ('option%d_radio0' % slot),
+                   part ('option%d_radio1' % slot))
+        boxes = tuple (part ('option%d_check%d' % (slot, n))
+                       for n in range (CHECK_BOXES))
         for control in (box, typed, listed, value_of):
           control.getModel ().HelpText = option.get ('help', option['hint'])
         value = state['options'].get (option['name'], option['default'])
@@ -498,8 +514,34 @@ class Analysis:
             control.setVisible (True)
           continue
         label.getModel ().Label = option['label']
-        hint.getModel ().Label = option['hint']
         label.setVisible (True)
+        # A stack of boxes, each on or off by itself and none of them a
+        # group, ticked in the order the option declares them
+        if (option['kind'] == 'checks'):
+          held = octave_stats.ticked (option, value)
+          for tick, (choice, text) in zip (boxes, option['choices']):
+            tick.getModel ().Label = text
+            tick.getModel ().State = int (choice in held)
+            tick.getModel ().HelpText = option.get ('help', option['hint'])
+            tick.setVisible (True)
+          under = part ('option%d_hint'
+                        % (slot + octave_stats.slots (option) - 1))
+          under.getModel ().Label = option['hint']
+          under.setVisible (True)
+          continue
+        # A pair of buttons stands where the hint of its own row would, so
+        # the hint goes under them, on the row they take up as well
+        if (option['kind'] == 'radios'):
+          under = part ('option%d_hint' % (slot + 1))
+          under.getModel ().Label = option['hint']
+          under.setVisible (True)
+          for button, (choice, text) in zip (buttons, option['choices']):
+            button.getModel ().Label = text
+            button.getModel ().State = int (choice == value)
+            button.getModel ().HelpText = option.get ('help', option['hint'])
+            button.setVisible (True)
+          continue
+        hint.getModel ().Label = option['hint']
         hint.setVisible (True)
         if (option['kind'] == 'choice'):
           shown = listed if option.get ('rows') else box
@@ -650,6 +692,16 @@ class Analysis:
       if ('note' in option):
         values[option['name']] = (
           part ('option%d_value' % slot).getModel ().Text.strip ())
+        continue
+      if (option['kind'] == 'checks'):
+        values[option['name']] = ' '.join (
+          choice for n, (choice, unused) in enumerate (option['choices'])
+          if part ('option%d_check%d' % (slot, n)).getModel ().State)
+        continue
+      if (option['kind'] == 'radios'):
+        for button, (choice, unused) in enumerate (option['choices']):
+          if (part ('option%d_radio%d' % (slot, button)).getModel ().State):
+            values[option['name']] = choice
         continue
       if (option['kind'] == 'choice'):
         shown = 'option%d_list' if option.get ('rows') else 'option%d_box'

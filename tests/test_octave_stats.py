@@ -258,6 +258,12 @@ class DialogControls (unittest.TestCase):
     with open (os.path.join (ROOT, 'python', 'statistics_menu.py')) as source:
       tree = ast.parse (source.read ())
     found = []
+    boxes = 1
+    for node in ast.walk (tree):
+      if (isinstance (node, ast.Assign)
+          and any (getattr (target, 'id', None) == 'CHECK_BOXES'
+                   for target in node.targets)):
+        boxes = node.value.value
     for node in ast.walk (tree):
       # The layout buttons, named from the RADIOS table
       if (isinstance (node, ast.Assign)
@@ -274,9 +280,13 @@ class DialogControls (unittest.TestCase):
         found.append (name.value)
       elif (isinstance (name, ast.BinOp)
             and isinstance (name.left, ast.Constant)):
-        # An option row, one per slot
-        found.extend (name.left.value % slot
-                      for slot in range (octave_stats.OPTION_SLOTS))
+        # An option row, one per slot, and a box of a row one per box
+        pattern = name.left.value
+        for slot in range (octave_stats.OPTION_SLOTS):
+          if (pattern.count ('%d') > 1):
+            found.extend (pattern % (slot, box) for box in range (boxes))
+          else:
+            found.append (pattern % slot)
     return found
 
   def test_the_dialog_is_read (self):
@@ -340,7 +350,8 @@ class Registry (unittest.TestCase):
   def test_option_args_of_fitdist (self):
     self.assertEqual (octave_stats.option_args ('Fitdist', {}),
                       [{'type': 'string', 'value': 'Normal'},
-                       {'type': 'string', 'value': 'none'},
+                       {'type': 'string', 'value': 'sample'},
+                       {'type': 'string', 'value': ''},
                        {'type': 'number', 'value': 0.05}])
 
   def test_option_args_of_isoutlier (self):
@@ -361,7 +372,36 @@ class Registry (unittest.TestCase):
       self.assertLessEqual (taken, octave_stats.OPTION_SLOTS, command)
 
   def test_a_tall_list_takes_two_rows (self):
-    self.assertEqual (octave_stats.slot_places ('Fitdist'), [0, 2, 3])
+    """Fitdist draws a list of four rows, then a pair of buttons, then a
+    field: two rows, two rows and one."""
+    self.assertEqual (octave_stats.slot_places ('Fitdist'), [0, 2, 4, 6])
+
+  def test_a_stack_of_boxes_takes_a_row_each (self):
+    """Never fewer than two, so that the hint below has a row to sit on."""
+    two = {'kind': 'checks', 'choices': (('a', 'A'), ('b', 'B'))}
+    three = {'kind': 'checks', 'choices': (('a', 'A'), ('b', 'B'),
+                                           ('c', 'C'))}
+    self.assertEqual ((octave_stats.slots (two), octave_stats.slots (three)),
+                      (2, 3))
+
+  def test_ticked_boxes_reach_octave_in_declared_order (self):
+    option = octave_stats.option_named ('Fitdist', 'parts')
+    self.assertEqual (octave_stats.ticked (option, 'cdf pdf'),
+                      ('pdf', 'cdf'))
+
+  def test_no_box_ticked_reaches_octave_as_nothing (self):
+    self.assertEqual (
+      octave_stats.option_args ('Fitdist', {'parts': ''})[2],
+      {'type': 'string', 'value': ''})
+
+  def test_one_box_ticked_reaches_octave_alone (self):
+    self.assertEqual (
+      octave_stats.option_args ('Fitdist', {'parts': 'cdf'})[2],
+      {'type': 'string', 'value': 'cdf'})
+
+  def test_a_pair_of_buttons_takes_two_rows (self):
+    self.assertEqual (octave_stats.slots (
+      octave_stats.option_named ('Fitdist', 'curve')), 2)
 
   def test_ordinary_options_take_a_row_each (self):
     self.assertEqual (octave_stats.slot_places ('Ttest1'), [0, 1, 2])
@@ -493,8 +533,11 @@ class Registry (unittest.TestCase):
         self.assertTrue ({'name', 'kind', 'label', 'hint', 'default'}
                          <= set (option), option)
         self.assertIn (option['kind'],
-                       ('choice', 'number', 'numbers', 'fixed'),
+                       ('choice', 'number', 'numbers', 'radios', 'checks',
+                        'fixed'),
                        option['name'])
+        if (option['kind'] == 'radios'):
+          self.assertEqual (len (option['choices']), 2, option['name'])
         if (option['kind'] in ('number', 'numbers')):
           self.assertTrue ({'accepts', 'minimum', 'maximum'} <= set (option),
                            option['name'])
