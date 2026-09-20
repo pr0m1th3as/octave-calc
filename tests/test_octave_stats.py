@@ -466,8 +466,15 @@ class Registry (unittest.TestCase):
     self.assertEqual (octave_stats.accepts_text (octave_stats.SKEW),
                       'a number from -1 to 1')
 
-  def test_analyses_of_empty_category (self):
-    self.assertEqual (octave_stats.analyses_of ('Association tests'), ())
+  def test_every_category_holds_an_analysis (self):
+    """A category joins the dialog with the analyses that fill it, so a
+    listed one is never empty."""
+    for category in octave_stats.CATEGORIES:
+      self.assertNotEqual (octave_stats.analyses_of (category), (), category)
+
+  def test_every_analysis_is_in_a_listed_category (self):
+    for command, analysis in octave_stats.ANALYSES.items ():
+      self.assertIn (analysis['category'], octave_stats.CATEGORIES, command)
 
   def test_first_analysis (self):
     self.assertEqual (octave_stats.first_analysis (), 'KruskalWallis')

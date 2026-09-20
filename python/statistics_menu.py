@@ -71,9 +71,9 @@ MENU_TITLE = 'Statistics with GNU Octave'
 
 # The Grouped by choices in the dialog, in the order of octave_stats.BY: their
 # control names, places and labels.
-RADIOS = (('columns', 206, 102, 'Columns'), ('rows', 306, 102, 'Rows'),
-          ('labels_data', 206, 116, 'Labels | Data'),
-          ('data_labels', 306, 116, 'Data | Labels'))
+RADIOS = (('columns', 206, 100, 'Columns'), ('rows', 306, 100, 'Rows'),
+          ('labels_data', 206, 114, 'Labels | Data'),
+          ('data_labels', 306, 114, 'Data | Labels'))
 RADIO_NAMES = [radio[0] for radio in RADIOS]
 
 # Option rows the dialog holds ready, since a control cannot be added once it
@@ -139,12 +139,12 @@ BY_HINT = {
   'range': 'Columns or Rows: one group each, whose first cell may hold its '
            'name.  Labels: two columns, the values and the group of each '
            'value.',
-  'matched': 'Columns or Rows: one measurement each, taken on the same '
-             'subjects in the same order, whose first cell may hold its '
-             'name.  A subject missing any measurement is left out whole.',
-  'factors': 'Three columns: the values and the two factors each value was '
-             'measured under, the factors before the values or after them.  '
-             'A first row of text names the two factors.',
+  'matched': 'Columns or Rows: one measurement each, on the same subjects '
+             'in the same order.  A first cell may name it; a subject '
+             'missing any is left out.',
+  'factors': 'Three columns: the values and the two factors each was '
+             'measured under, in either order.  A first row of text names '
+             'the two factors.',
   'sample': 'Columns or Rows: one column, or one row, of values, whose first '
             'cell may hold the name of the sample.'}
 
@@ -393,13 +393,15 @@ class Analysis:
     add ('Button', 'output_pick', 350, 59, 64, 16, Label = 'Select...')
     add ('FixedText', 'output_hint', 206, 76, 208, 10,
          Label = 'The top left cell the results are written from.')
-    add ('FixedText', 'by_label', 206, 90, 80, 10, Label = 'Grouped by:')
+    add ('FixedText', 'by_label', 206, 88, 80, 10, Label = 'Grouped by:')
     # One group of radio buttons, since their tab indices follow each other
     for (name, x, y, label), choice in zip (RADIOS, octave_stats.BY):
       add ('RadioButton', name, x, y, 95, 12, Label = label,
            State = int (answers['by'] == choice),
            HelpText = LAYOUT_HELP['range'][choice])
-    add ('FixedText', 'by_hint', 206, 132, 208, 20, MultiLine = True,
+    # Three lines: matched measurements and two factors both take more than
+    # two to say
+    add ('FixedText', 'by_hint', 206, 128, 208, 30, MultiLine = True,
          Label = BY_HINT['range'])
     # The size of the draw: the results range where it holds more than one
     # cell, and the two fields where it holds one
@@ -417,7 +419,7 @@ class Analysis:
     # Two lines, the seed taking more words to explain than fit on one
     add ('FixedText', 'seed_hint', 206, SIZE_TOP + 43, 208, 20,
          MultiLine = True)
-    add ('FixedText', 'options_label', 206, 156, 208, 10, Label = 'Options:',
+    add ('FixedText', 'options_label', 206, 160, 208, 10, Label = 'Options:',
          FontWeight = BOLD)
     for slot in range (OPTION_SLOTS):
       top = 168 + 24 * slot

@@ -19,8 +19,48 @@ nothing here installs with `pkg`. It installs into LibreOffice.
 
 ## Status
 
-**Early, and explicitly unmaintained until it proves it is wanted.** What
-works today are two spreadsheet functions:
+**Early, and explicitly unmaintained until it proves it is wanted.** Two
+things work today: a menu of statistical analyses, and two spreadsheet
+functions.
+
+## The Statistics menu
+
+`Data > Statistics with GNU Octave`, directly below Calc's own Statistics,
+opens one dialog. You pick a category, then an analysis inside it, and the
+dialog says what that analysis is for and when to use it instead of its
+neighbours. You give it the range holding your data, say how that range is
+laid out, set whatever the analysis offers, and name the cell the results
+are written from. Nothing is overwritten without asking, and the results go
+in as one undoable action.
+
+An analysis states what it reads, and the dialog asks for it in those words:
+two or more independent groups, one per column or per row or as two columns
+of values and labels; measurements taken on the same subjects, a row per
+subject; each value beside the two factors it was measured under; one
+sample; or no cells at all.
+
+Four categories, forty-six analyses.
+
+- **Group comparisons**, eleven. One-way ANOVA and two-way ANOVA, the
+  two-sample, paired and one-sample t-tests, the Kruskal-Wallis and
+  Mann-Whitney U tests, the Wilcoxon signed-rank test, the sign test, the
+  Friedman test, and a test of equal variances. Welch's variant where it
+  applies, and pairwise comparisons saying which groups differ.
+- **Distribution fitting**, four. Tests of normality, goodness of fit,
+  distribution fitting with a confidence interval per parameter, and
+  outlier detection.
+- **Random numbers**, twenty-six. A generator per distribution, drawing
+  into the range you select. It returns the numbers and nothing else.
+- **Experimental design**, five. Sample size, power and detectable
+  difference, each solving for one quantity, and the full and two-level
+  factorial designs.
+
+Association tests, regression models and multivariate analyses are not there
+yet. Each will appear with the analyses that fill it.
+
+## Spreadsheet functions
+
+The two functions are:
 
     =OCTAVE("mean", A1:C2, 2, "omitnan")
     =OCTAVE("interp1", OCTRANGE(A1:A10), B1:B10, "linear")
@@ -57,12 +97,11 @@ analyses with or without a sandbox, since what it runs comes from the
 extension and never from the document; when a sandbox that should work
 fails, it says so once.
 
+## Settings
+
 The settings are under `org.octavecalc.Settings` in Tools > Options > Advanced
 > Open Expert Configuration: the folders holding your own functions, the
 packages to load, the memory and `/tmp` sizes, and the time limits.
-
-A menu-driven workbench for longer analyses, which a formula cannot host
-because Calc waits for a formula to return, is the next piece.
 
 ## Requirements
 

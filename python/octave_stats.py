@@ -64,16 +64,13 @@ def allowed (by, kind = 'range'):
           'or numbers.' % noun)
 
 # The categories, in the order the dialog lists them, each with the sentence
-# shown under the category.
+# shown under the category.  A category joins this list with the analyses
+# that fill it; one listed and empty offers the user a door into a room that
+# does not exist.  Association tests, Regression models and Multivariate
+# analyses are still to be written and are therefore not here.
 CATEGORIES = {
   'Group comparisons':
     'Tests whether two or more groups differ, and which of them do.',
-  'Association tests':
-    'Measures whether two variables move together, and tests independence.',
-  'Regression models':
-    'Fits a model that predicts one variable from others.',
-  'Multivariate analyses':
-    'Finds the structure in many variables at once.',
   'Distribution fitting':
     'Fits a distribution to a sample, and tests whether it fits.',
   'Random numbers':
