@@ -353,10 +353,18 @@ class Registry (unittest.TestCase):
 
   def test_options_fit_the_dialog (self):
     """Only the options drawn in the rows are capped; the size and the seed
-    have fields of their own and a fixed value is never drawn."""
+    have fields of their own and a fixed value is never drawn.  A list drawn
+    open takes two rows, so the count is of rows and not of options."""
     for command in octave_stats.ANALYSES:
-      self.assertLessEqual (len (octave_stats.slotted (command)),
-                            octave_stats.OPTION_SLOTS, command)
+      taken = sum (octave_stats.slots (option)
+                   for option in octave_stats.slotted (command))
+      self.assertLessEqual (taken, octave_stats.OPTION_SLOTS, command)
+
+  def test_a_tall_list_takes_two_rows (self):
+    self.assertEqual (octave_stats.slot_places ('Fitdist'), [0, 2, 3])
+
+  def test_ordinary_options_take_a_row_each (self):
+    self.assertEqual (octave_stats.slot_places ('Ttest1'), [0, 1, 2])
 
   def test_slotted_leaves_out_what_is_drawn_elsewhere (self):
     self.assertEqual ([option['name']

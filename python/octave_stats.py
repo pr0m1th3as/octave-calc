@@ -403,11 +403,13 @@ TAIL_MEANS_SAMPLE = {'name': 'tail', 'kind': 'choice',
                                  ('left', "the sample's mean is smaller")),
                      'default': 'both'}
 
+# Twenty-four distributions are too many to drop open over the rows beneath
+# them, so this one is drawn as a list of its own that scrolls.
 DISTRIBUTION_FIT = {'name': 'distname', 'kind': 'choice',
                     'label': 'Distribution:',
                     'hint': 'The distribution to fit to the sample.',
                     'choices': tuple ((name, name) for name in FITTED),
-                    'default': 'Normal'}
+                    'rows': 4, 'default': 'Normal'}
 
 # The layouts an analysis of two factors takes: the two factor columns
 # before the values, or after them.  A column or a row per level cannot say
@@ -1040,6 +1042,21 @@ def slotted (command):
   aside.add (analysis.get ('seeded'))
   return tuple (option for option in analysis['options']
                 if option['kind'] != 'fixed' and option['name'] not in aside)
+
+
+def slots (option):
+  """Option rows OPTION takes up.  A list drawn open rather than dropped
+  down is as tall as two of them."""
+  return 2 if option.get ('rows') else 1
+
+
+def slot_places (command):
+  """Which option row each of COMMAND's drawn options starts at."""
+  places, row = [], 0
+  for option in slotted (command):
+    places.append (row)
+    row += slots (option)
+  return places
 
 
 def heading (command):

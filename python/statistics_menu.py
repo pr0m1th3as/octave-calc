@@ -95,6 +95,11 @@ SIZE_INTRO = ('Two ways to set the size of the returned cell range: select '
 # throughout, so the name and the note are two controls, not one label.
 ITALIC = uno.Enum ('com.sun.star.awt.FontSlant', 'ITALIC')
 
+# A list drawn open rather than dropped down, four rows tall and scrolling
+# past them.  A dropped-open list is a window the theme draws wider than the
+# box it came from and with a frame of its own, which an open one is not.
+LIST_ROWS = 44
+
 # What each layout means, on hovering over its button, by the kind of input
 # the analysis reads.
 LAYOUT_HELP = {
@@ -367,12 +372,12 @@ class Analysis:
       model.insertByName (name, control)
 
     add ('FixedText', 'category_label', 6, 8, 80, 10, Label = 'Category:')
-    add ('ListBox', 'category', 6, 19, 190, 12, Dropdown = True,
+    add ('ListBox', 'category', 6, 19, 190, LIST_ROWS,
          StringItemList = octave_stats.category_names ())
-    add ('FixedText', 'category_detail', 6, 35, 190, 20, MultiLine = True)
-    add ('FixedText', 'analysis_label', 6, 60, 80, 10, Label = 'Analysis:')
-    add ('ListBox', 'analysis', 6, 71, 190, 60)
-    add ('FixedText', 'detail', 6, 135, 190, 175, MultiLine = True)
+    add ('FixedText', 'category_detail', 6, 63, 190, 20, MultiLine = True)
+    add ('FixedText', 'analysis_label', 6, 87, 80, 10, Label = 'Analysis:')
+    add ('ListBox', 'analysis', 6, 98, 190, 60)
+    add ('FixedText', 'detail', 6, 162, 190, 148, MultiLine = True)
     add ('FixedText', 'input_label', 206, 8, 80, 10, Label = 'Input range:')
     add ('Edit', 'input', 206, 19, 140, 14, Text = answers['input'],
          HelpText = 'The range holding the data, such as Sheet1.A1:C20, or '
@@ -424,7 +429,9 @@ class Analysis:
     for slot in range (OPTION_SLOTS):
       top = 168 + 24 * slot
       add ('FixedText', 'option%d_label' % slot, 206, top + 2, 100, 10)
-      add ('ListBox', 'option%d_box' % slot, 310, top, 104, 12, Dropdown = True)
+      add ('ListBox', 'option%d_box' % slot, 310, top, 104, 12,
+           Dropdown = True)
+      add ('ListBox', 'option%d_list' % slot, 310, top, 104, LIST_ROWS)
       add ('Edit', 'option%d_text' % slot, 310, top, 104, 12)
       add ('FixedText', 'option%d_hint' % slot, 206, top + 14, 208, 10)
       # A row that carries a note reads "name: (what it is)", the note
@@ -459,22 +466,26 @@ class Analysis:
       if (options):
         part ('options_label').getModel ().Label = octave_stats.heading (
           command)
+      at = dict (zip (octave_stats.slot_places (command) if command else (),
+                      options))
       for slot in range (OPTION_SLOTS):
-        option = options[slot] if slot < len (options) else None
+        option = at.get (slot)
         label, hint = (part ('option%d_label' % slot),
                        part ('option%d_hint' % slot))
-        box, typed = (part ('option%d_box' % slot),
-                      part ('option%d_text' % slot))
+        box, typed, listed = (part ('option%d_box' % slot),
+                              part ('option%d_text' % slot),
+                              part ('option%d_list' % slot))
         name, note, value_of = (part ('option%d_name' % slot),
                                 part ('option%d_note' % slot),
                                 part ('option%d_value' % slot))
-        for control in (label, hint, box, typed, name, note, value_of):
+        for control in (label, hint, box, typed, listed, name, note,
+                        value_of):
           control.setVisible (False)
         for control in (label, hint, name, note):
           control.getModel ().Label = ''
         if (option is None):
           continue
-        for control in (box, typed, value_of):
+        for control in (box, typed, listed, value_of):
           control.getModel ().HelpText = option.get ('help', option['hint'])
         value = state['options'].get (option['name'], option['default'])
         # A noted row says what the option is beside its name, so it needs
@@ -491,12 +502,16 @@ class Analysis:
         label.setVisible (True)
         hint.setVisible (True)
         if (option['kind'] == 'choice'):
-          box.getModel ().StringItemList = tuple (text for unused, text
-                                                  in option['choices'])
+          shown = listed if option.get ('rows') else box
+          shown.getModel ().StringItemList = tuple (text for unused, text
+                                                    in option['choices'])
           offered = [choice for choice, unused in option['choices']]
-          box.getModel ().SelectedItems = (
+          shown.getModel ().SelectedItems = (
             offered.index (value) if value in offered else 0,)
-          box.setVisible (True)
+          shown.setVisible (True)
+          # The hint of a tall list goes under the rows it covers
+          if (option.get ('rows')):
+            hint.setVisible (False)
           continue
         typed.getModel ().Text = str (value)
         typed.setVisible (True)
@@ -629,14 +644,16 @@ class Analysis:
         by = choice
     command, values = state['command'], dict (state['options'])
     analysis = octave_stats.ANALYSES[command] if command else None
-    for slot, option in enumerate (
-        octave_stats.slotted (command)[:OPTION_SLOTS] if command else ()):
+    drawn = (list (zip (octave_stats.slot_places (command),
+                        octave_stats.slotted (command))) if command else ())
+    for slot, option in drawn:
       if ('note' in option):
         values[option['name']] = (
           part ('option%d_value' % slot).getModel ().Text.strip ())
         continue
       if (option['kind'] == 'choice'):
-        position = part ('option%d_box' % slot).getSelectedItemPos ()
+        shown = 'option%d_list' if option.get ('rows') else 'option%d_box'
+        position = part (shown % slot).getSelectedItemPos ()
         if (0 <= position < len (option['choices'])):
           values[option['name']] = option['choices'][position][0]
         continue
