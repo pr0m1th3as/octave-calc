@@ -450,26 +450,21 @@ class Registry (unittest.TestCase):
     self.assertIn ('sample names', octave_stats.allowed ('columns', 'sample'))
 
   def test_options_fit_the_dialog (self):
-    """Only the options drawn in the rows are capped; the size and the seed
-    have fields of their own and a fixed value is never drawn.  A list drawn
-    open takes two rows, so the count is of rows and not of options."""
+    """One option is drawn in one row, whatever it draws, so the cap is on
+    the options an analysis declares.  The size and the seed have fields of
+    their own and a fixed value is never drawn."""
     for command in octave_stats.ANALYSES:
-      taken = sum (octave_stats.slots (option)
-                   for option in octave_stats.slotted (command))
-      self.assertLessEqual (taken, octave_stats.OPTION_SLOTS, command)
+      self.assertLessEqual (len (octave_stats.slotted (command)),
+                            octave_stats.OPTION_SLOTS, command)
 
-  def test_a_tall_list_takes_two_rows (self):
-    """Fitdist draws a list of four rows, then a pair of buttons, then a
-    field: two rows, two rows and one."""
-    self.assertEqual (octave_stats.slot_places ('Fitdist'), [0, 2, 4, 6])
-
-  def test_a_stack_of_boxes_takes_a_row_each (self):
-    """Never fewer than two, so that the hint below has a row to sit on."""
-    two = {'kind': 'checks', 'choices': (('a', 'A'), ('b', 'B'))}
-    three = {'kind': 'checks', 'choices': (('a', 'A'), ('b', 'B'),
-                                           ('c', 'C'))}
-    self.assertEqual ((octave_stats.slots (two), octave_stats.slots (three)),
-                      (2, 3))
+  def test_a_stack_of_boxes_fits_the_row_it_is_drawn_in (self):
+    """A row holds a fixed number of boxes, since a control cannot be added
+    once the dialog is open."""
+    for command in octave_stats.ANALYSES:
+      for option in octave_stats.slotted (command):
+        if (option['kind'] == 'checks'):
+          self.assertLessEqual (len (option['choices']),
+                                octave_stats.CHECK_BOXES, option['name'])
 
   def test_ticked_boxes_reach_octave_in_declared_order (self):
     option = octave_stats.option_named ('Fitdist', 'parts')
@@ -485,13 +480,6 @@ class Registry (unittest.TestCase):
     self.assertEqual (
       octave_stats.option_args ('Fitdist', {'parts': 'cdf'})[2],
       {'type': 'string', 'value': 'cdf'})
-
-  def test_a_pair_of_buttons_takes_two_rows (self):
-    self.assertEqual (octave_stats.slots (
-      octave_stats.option_named ('Fitdist', 'curve')), 2)
-
-  def test_ordinary_options_take_a_row_each (self):
-    self.assertEqual (octave_stats.slot_places ('Ttest1'), [0, 1, 2])
 
   def test_slotted_leaves_out_what_is_drawn_elsewhere (self):
     self.assertEqual ([option['name']

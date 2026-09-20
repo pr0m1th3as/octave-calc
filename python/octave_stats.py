@@ -89,8 +89,14 @@ CATEGORIES = {
 LIST_LABEL = {'Random numbers': 'Available generators:'}
 
 # Option rows the dialog holds ready, since a control cannot be added once it
-# is open.  An analysis may draw no more options than this in them.
+# is open.  One option is drawn in one row, whatever it draws and however
+# many lines it says it in, so this is the most options an analysis may
+# declare and not a measure of anything.
 OPTION_SLOTS = 8
+
+# Boxes one option row holds ready for a 'checks' option to tick, which is
+# the most choices such an option may declare.
+CHECK_BOXES = 3
 
 # The longest note an option row can show beside its label without the field
 # to its right cutting it off, measured in characters against the width the
@@ -112,7 +118,8 @@ def list_label (category):
 # take them.  The null standard deviation is taken by the z and t tests and
 # ignored by the rest, since the dialog cannot leave a number blank.
 POWER_TEST = {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
-              'hint': 'Which test the study will use.',
+              'hint': 'Which test the study will use, the answer being '
+                      'the size that test needs and no other.',
               'choices': (('t', 'One-sample or paired t-test'),
                           ('t2', 'Two-sample t-test'),
                           ('z', 'One-sample z-test'),
@@ -122,25 +129,30 @@ POWER_TEST = {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
               'default': 't'}
 
 NULL_VALUE = {'name': 'nullvalue', 'kind': 'number', 'label': 'Null value:',
-              'hint': 'The mean, proportion, variance or correlation under '
-                      'the null hypothesis.',
+              'hint': 'The figure the study is testing against, read as '
+                      'a mean, a proportion, a variance or a correlation '
+                      'by the test chosen above.',
               'accepts': 'a number', 'minimum': float ('-inf'),
               'maximum': float ('inf'), 'default': '5'}
 
 NULL_SD = {'name': 'nullsd', 'kind': 'number',
            'label': 'Null standard deviation:',
-           'hint': 'Taken by the t and z tests; ignored by the others.',
+           'hint': 'How widely the values scatter under the null '
+                   'hypothesis. Taken by the t and z tests and ignored by '
+                   'the others.',
            'accepts': 'a number greater than 0', 'minimum': 0.0,
            'maximum': float ('inf'), 'default': '2'}
 
 SAMPLE_SIZE = {'name': 'n', 'kind': 'number', 'label': 'Sample size:',
-               'hint': 'Observations in the study, or in each group.',
+               'hint': 'Observations in the study, or in each group '
+                       'where the test compares two.',
                'accepts': 'a whole number of 2 or more', 'minimum': 1.0,
                'maximum': float ('inf'), 'whole': True, 'default': '30'}
 
 ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
                'label': 'Significance level:',
-               'hint': 'The chance of a false positive. 0.05 by default.',
+               'hint': 'The chance of calling a difference real when '
+                       'there is none. 0.05 by default.',
                'accepts': 'a number greater than 0 and less than 1',
                'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
 
@@ -400,20 +412,26 @@ FITTED = ('Beta', 'Binomial', 'BirnbaumSaunders', 'Burr', 'Exponential',
 
 TAIL_MEANS_SAMPLE = {'name': 'tail', 'kind': 'choice',
                      'label': 'Alternative:',
-                     'hint': "What the test is prepared to find, the sample "
-                             "against the value.",
+                     'hint': 'What the test is prepared to find, the sample '
+                             'against the value you compare it with. A '
+                             'one-sided test looks that way only.',
                      'choices': (('both', 'the means differ'),
                                  ('right', "the sample's mean is greater"),
                                  ('left', "the sample's mean is smaller")),
                      'default': 'both'}
 
 # Twenty-four distributions are too many to drop open over the rows beneath
-# them, so this one is drawn as a list of its own that scrolls.
+# them, so this one is drawn as a list of its own that scrolls.  Three rows
+# of it rather than four: the analyses that draw it are the tallest there
+# are, and a row of the list buys a line of what the rows below it say.
 DISTRIBUTION_FIT = {'name': 'distname', 'kind': 'choice',
                     'label': 'Distribution:',
-                    'hint': 'The distribution to fit to the sample.',
+                    'hint': 'The distribution fitted to the sample.',
+                    'help': 'The distribution fitted to the sample, whose '
+                            'parameters the results report with a '
+                            'confidence interval each.',
                     'choices': tuple ((name, name) for name in FITTED),
-                    'rows': 4, 'default': 'Normal'}
+                    'rows': 3, 'default': 'Normal'}
 
 # The layouts an analysis of two factors takes: the two factor columns
 # before the values, or after them.  A column or a row per level cannot say
@@ -430,7 +448,8 @@ MATCHED = ('columns', 'rows')
 # them.  The first measurement is always the one the alternative is about.
 TAIL_MEANS = {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
               'hint': 'What the test is prepared to find, the first '
-                      'measurement against the second.',
+                      'measurement against the second. A one-sided test '
+                      'looks that way only.',
               'choices': (('both', 'the means differ'),
                           ('right', 'the first mean is greater'),
                           ('left', 'the first mean is smaller')),
@@ -438,15 +457,22 @@ TAIL_MEANS = {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
 
 TAIL_MEDIANS = {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
                 'hint': 'What the test is prepared to find, the first '
-                        'measurement against the second.',
+                        'measurement against the second. A one-sided test '
+                        'looks that way only.',
                 'choices': (('both', 'the medians differ'),
                             ('right', 'the first median is greater'),
                             ('left', 'the first median is smaller')),
                 'default': 'both'}
 
 METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
-                'hint': 'Exact enumeration, or the normal approximation. '
-                        'Chosen by the sample size unless set.',
+                'hint': 'Exact enumeration weighs every rearrangement of the '
+                        'signs and is slow on a large sample; the '
+                        'approximation needs one large enough to be normal.',
+                'help': 'Exact enumeration weighs every rearrangement of the '
+                        'signs, which is exact at any size and slow on a '
+                        'large sample.  The normal approximation is quick '
+                        'and needs a sample large enough for it.  Left '
+                        'alone, the sample size chooses.',
                 'choices': (('auto', 'chosen by the sample size'),
                             ('exact', 'exact'),
                             ('approximate', 'approximate')),
@@ -502,14 +528,18 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'hint': 'How the p-values of the pairwise comparisons are held '
+               'down, several pairs tested at once throwing up differences '
+               'of their own. Holm is the safe default.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
                    ('lsd', 'None')),
        'default': 'holm'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the confidence intervals. 0.05 by default.',
+       'hint': 'Sets the width of the confidence intervals, and the '
+               'chance of calling a difference real when there is none. '
+               '0.05 by default.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova1': {
@@ -530,18 +560,24 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'hint': 'How the p-values of the pairwise comparisons are held '
+               'down, several pairs tested at once throwing up differences '
+               'of their own. Holm is the safe default.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
                    ('lsd', 'None')),
        'default': 'holm'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the confidence intervals. 0.05 by default.',
+       'hint': 'Sets the width of the confidence intervals, and the '
+               'chance of calling a difference real when there is none. '
+               '0.05 by default.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'},
       {'name': 'vartype', 'kind': 'choice', 'label': 'Variances:',
-       'hint': 'Welch does not assume the groups share a variance.',
+       'hint': 'Welch does not assume the groups share a variance, and '
+               'is the safer of the two where they differ or the groups '
+               'are of unequal size.',
        'choices': (('equal', 'equal (assumed)'),
                    ('unequal', 'non-equal (Welch)')),
        'default': 'equal'})},
@@ -563,19 +599,24 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'vartype', 'kind': 'choice', 'label': 'Variances:',
-       'hint': 'Welch does not assume the groups share a variance.',
+       'hint': 'Welch does not assume the groups share a variance, and '
+               'is the safer of the two where they differ or the groups '
+               'are of unequal size.',
        'choices': (('equal', 'equal (assumed)'),
                    ('unequal', 'non-equal (Welch)')),
        'default': 'equal'},
       {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
-       'hint': 'What the test is prepared to find, the first group against '
-               'the second.',
+       'hint': 'What the test is prepared to find, the first group '
+               'against the second. A one-sided test looks that way only, '
+               'and finds nothing the other way however large.',
        'choices': (('both', 'the means differ'),
                    ('right', 'the first mean is greater'),
                    ('left', 'the first mean is smaller')),
        'default': 'both'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the confidence interval. 0.05 by default.',
+       'hint': 'Sets the width of the confidence interval, and the '
+               'chance of calling a difference real when there is none. '
+               '0.05 by default.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Ranksum': {
@@ -596,20 +637,27 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
-       'hint': 'Exact enumeration, or the normal approximation. Chosen by '
-               'the sample sizes unless set.',
+       'hint': 'Exact enumeration weighs every way the two groups could be '
+               'ranked and is slow on large ones; the approximation needs '
+               'groups large enough to be normal.',
+       'help': 'Exact enumeration weighs every way the values of the two '
+               'groups could be ranked, which is exact at any size and slow '
+               'on large ones.  The normal approximation is quick and needs '
+               'groups large enough for it.  Left alone, the sizes choose.',
        'choices': (('auto', 'chosen by the sample sizes'),
                    ('exact', 'exact'), ('approximate', 'approximate')),
        'default': 'auto'},
       {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
-       'hint': 'What the test is prepared to find, the first group against '
-               'the second.',
+       'hint': 'What the test is prepared to find, the first group '
+               'against the second. A one-sided test looks that way only, '
+               'and finds nothing the other way however large.',
        'choices': (('both', 'the medians differ'),
                    ('right', 'the first median is greater'),
                    ('left', 'the first median is smaller')),
        'default': 'both'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'The chance of a false positive. 0.05 by default.',
+       'hint': 'The chance of calling a difference real when there is '
+               'none. 0.05 by default.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'VarTestN': {
@@ -632,7 +680,9 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
-       'hint': 'Bartlett assumes each group is normal; the rest do not.',
+       'hint': "Bartlett is the most powerful where every group is "
+               "normal and the most easily misled where one is not; the "
+               "rest weigh each value against its group's centre.",
        'choices': (('Bartlett', 'Bartlett'),
                    ('LeveneQuadratic', 'Levene, squared deviations'),
                    ('LeveneAbsolute', 'Levene, absolute deviations'),
@@ -640,7 +690,8 @@ ANALYSES = {
                    ('OBrien', "O'Brien")),
        'default': 'Bartlett'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the confidence interval of the ratio. 0.05 by default.',
+       'hint': 'Sets the width of the confidence interval of the ratio '
+               'of the two variances. 0.05 by default.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova2': {
@@ -662,13 +713,16 @@ ANALYSES = {
     'layouts': FACTORS,
     'options': (
       {'name': 'model', 'kind': 'choice', 'label': 'Model:',
-       'hint': 'Whether the effect of one factor may depend on the level of '
-               'the other.',
+       'hint': 'Whether the effect of one factor may depend on the level '
+               'of the other, which needs a combination measured more than '
+               'once.',
        'choices': (('interaction', 'the two effects and their interaction'),
                    ('linear', 'the two effects, taken to add')),
        'default': 'interaction'},
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'hint': 'How the p-values of the pairwise comparisons are held '
+               'down, several pairs tested at once throwing up differences '
+               'of their own. Holm is the safe default.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
@@ -743,7 +797,9 @@ ANALYSES = {
     'layouts': MATCHED,
     'options': (
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are adjusted.',
+       'hint': 'How the p-values of the pairwise comparisons are held '
+               'down, several pairs tested at once throwing up differences '
+               'of their own. Holm is the safe default.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
@@ -785,8 +841,9 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (DISTRIBUTION_FIT,
                 {'name': 'nbins', 'kind': 'number', 'label': 'Bins:',
-                 'hint': 'How many bins to count the sample into. 10 by '
-                         'default.',
+                 'hint': 'How many bins to count the sample into. Bins '
+                         'expecting too few values are joined, so fewer '
+                         'may be counted. 10 by default.',
                  'accepts': 'a whole number of 2 or more',
                  'minimum': 1.0, 'maximum': float ('inf'), 'whole': True,
                  'default': '10'},
@@ -837,7 +894,9 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (
       {'name': 'method', 'kind': 'choice', 'label': 'Method:',
-       'hint': 'How far from what centre a value must sit.',
+       'hint': 'How far from what centre a value must sit to be called '
+               'an outlier. The median method is the one the outliers '
+               'themselves do not move.',
        'choices': (('median', 'median deviations from the median'),
                    ('mean', 'standard deviations from the mean'),
                    ('quartiles', 'interquartile ranges from the quartiles'),
@@ -845,8 +904,8 @@ ANALYSES = {
                    ('gesd', 'generalized extreme Studentized deviate')),
        'default': 'median'},
       {'name': 'factor', 'kind': 'number', 'label': 'Factor:',
-       'hint': "How far, in the units the method counts in.  0 leaves the "
-               "method its own.",
+       'hint': 'How far out a value must sit, in the units the method '
+               'counts in. 0 leaves the method the threshold of its own.',
        'accepts': 'a number of 0 or more', 'minimum': -1.0,
        'maximum': float ('inf'), 'default': '0'})},
   'Ttest1': {
@@ -867,7 +926,8 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (
       {'name': 'nullmean', 'kind': 'number', 'label': 'Compare with:',
-       'hint': 'The mean the sample is tested against. 0 by default.',
+       'hint': 'The mean the sample is tested against: a target, a '
+               'specification, a published figure, or 0. 0 by default.',
        'accepts': 'a number', 'minimum': float ('-inf'),
        'maximum': float ('inf'), 'default': '0'},
       TAIL_MEANS_SAMPLE, ALPHA_LEVEL)},
@@ -886,7 +946,8 @@ ANALYSES = {
     'layouts': (),
     'options': (
       {'name': 'levels', 'kind': 'numbers', 'label': 'Levels per factor:',
-       'hint': 'One number per factor, such as 2 3 3.',
+       'hint': 'One number per factor, such as 2 3 3, which crosses a '
+               'factor of two levels with two of three and gives 18 runs.',
        'accepts': 'one whole number per factor, each 2 or more',
        'minimum': 1.0, 'maximum': 1000.0, 'whole': True, 'default': '2 3 3'},)},
   'TwoLevelFactorial': {
@@ -902,7 +963,8 @@ ANALYSES = {
     'layouts': (),
     'options': (
       {'name': 'factors', 'kind': 'number', 'label': 'Factors:',
-       'hint': 'Each factor doubles the number of runs.',
+       'hint': 'How many factors to set low or high. Each one doubles '
+               'the number of runs: five factors give 32.',
        'accepts': 'a whole number from 1 to 15',
        'minimum': 0.0, 'maximum': 16.0, 'whole': True, 'default': '3'},)},
   'SampleSize': {
@@ -919,13 +981,15 @@ ANALYSES = {
     'layouts': (),
     'options': (POWER_TEST, NULL_VALUE, NULL_SD,
                 {'name': 'p1', 'kind': 'number', 'label': 'Alternative value:',
-                 'hint': 'The value worth detecting, as a mean, proportion, '
-                         'variance or correlation.',
+                 'hint': 'The value worth detecting, read as a mean, a '
+                         'proportion, a variance or a correlation by the '
+                         'test chosen above.',
                  'accepts': 'a number', 'minimum': float ('-inf'),
                  'maximum': float ('inf'), 'default': '6'},
                 {'name': 'power', 'kind': 'number', 'label': 'Power:',
-                 'hint': 'The chance of detecting it. Must exceed the '
-                         'significance level.',
+                 'hint': 'The chance of detecting that alternative if '
+                         'it is true. Must exceed the significance '
+                         'level.',
                  'accepts': 'a number greater than 0 and less than 1',
                  'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
                 ALPHA_LEVEL)},
@@ -942,8 +1006,9 @@ ANALYSES = {
     'layouts': (),
     'options': (POWER_TEST, NULL_VALUE, NULL_SD,
                 {'name': 'p1', 'kind': 'number', 'label': 'Alternative value:',
-                 'hint': 'The value worth detecting, as a mean, proportion, '
-                         'variance or correlation.',
+                 'hint': 'The value worth detecting, read as a mean, a '
+                         'proportion, a variance or a correlation by the '
+                         'test chosen above.',
                  'accepts': 'a number', 'minimum': float ('-inf'),
                  'maximum': float ('inf'), 'default': '6'},
                 SAMPLE_SIZE, ALPHA_LEVEL)},
@@ -959,8 +1024,9 @@ ANALYSES = {
     'layouts': (),
     'options': (POWER_TEST, NULL_VALUE, NULL_SD,
                 {'name': 'power', 'kind': 'number', 'label': 'Power:',
-                 'hint': 'The chance of detecting it. Must exceed the '
-                         'significance level.',
+                 'hint': 'The chance of detecting that alternative if '
+                         'it is true. Must exceed the significance '
+                         'level.',
                  'accepts': 'a number greater than 0 and less than 1',
                  'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
                 SAMPLE_SIZE, ALPHA_LEVEL)}}
@@ -1092,15 +1158,6 @@ def slotted (command):
                 if option['kind'] != 'fixed' and option['name'] not in aside)
 
 
-def slots (option):
-  """Option rows OPTION takes up.  A list drawn open rather than dropped
-  down, and a stack of buttons, are each as tall as two of them; a stack of
-  boxes is as tall as it has boxes, and never less than two."""
-  if (option['kind'] == 'checks'):
-    return max (2, len (option['choices']))
-  return 2 if (option.get ('rows') or option['kind'] == 'radios') else 1
-
-
 def ticked (option, value):
   """The choices of a 'checks' option that VALUE holds, in declared order.
   VALUE is the ticked keys with a space between them, and nothing at all
@@ -1108,15 +1165,6 @@ def ticked (option, value):
   held = str (value).split ()
   return tuple (choice for choice, unused in option['choices']
                 if choice in held)
-
-
-def slot_places (command):
-  """Which option row each of COMMAND's drawn options starts at."""
-  places, row = [], 0
-  for option in slotted (command):
-    places.append (row)
-    row += slots (option)
-  return places
 
 
 def heading (command):
