@@ -2,7 +2,7 @@ Run GNU Octave analyses from inside your LibreOffice Calc spreadsheet.
 
 Forty-six of them, across four categories, and your custom functions
 written in GNU Octave as well. Data > Statistics with GNU Octave opens
-one dialog,  where each analysis says what it is for and when to use
+one dialog, where each analysis says what it is for and when to use
 it instead of its neighbours. Results are written into the sheet as
 one undoable action, and nothing is overwritten without asking.
 
