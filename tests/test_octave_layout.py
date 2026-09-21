@@ -27,6 +27,7 @@ ends above the buttons.
 """
 
 import ast
+import io
 import os
 import re
 import sys
@@ -231,6 +232,82 @@ class Hints (unittest.TestCase):
                     octave_layout.INPUT_HELP[kind],
                     octave_layout.BY_HINT[kind]):
         self.assertNotIn ('layout', words, kind)
+
+
+class Rebuilt (unittest.TestCase):
+  """A Select button ends the dialog and the whole of it is built again
+  once the range is picked, so every control holding a choice of the
+  user's is seeded from the answers.  One left bare comes back empty and
+  loses what they had set."""
+
+  def layout_buttons (self):
+    """The add() calls inside the loop that makes the Grouped by radios,
+    as the keywords each passes.  Other radios are made elsewhere and are
+    filled once an analysis is chosen, so only these are wanted."""
+    with io.open (os.path.join (ROOT, 'python', 'statistics_menu.py'),
+                  encoding = 'utf-8') as held:
+      tree = ast.parse (held.read ())
+    for node in ast.walk (tree):
+      if (not isinstance (node, ast.For)):
+        continue
+      if ('RADIO_NAMES' not in ast.dump (node.iter)):
+        continue
+      for inner in ast.walk (node):
+        if (isinstance (inner, ast.Call)
+            and isinstance (inner.func, ast.Name) and inner.func.id == 'add'
+            and inner.args
+            and getattr (inner.args[0], 'value', None) == 'RadioButton'):
+          yield set (word.arg for word in inner.keywords)
+
+  def asked (self):
+    """The body of Analysis.ask, which builds the dialog and reads it back
+    when it ends."""
+    with io.open (os.path.join (ROOT, 'python', 'statistics_menu.py'),
+                  encoding = 'utf-8') as held:
+      tree = ast.parse (held.read ())
+    for node in ast.walk (tree):
+      if (isinstance (node, ast.FunctionDef) and node.name == 'ask'):
+        return node
+    raise AssertionError ('no Analysis.ask')
+
+  def test_every_answer_it_reads_it_gives_back (self):
+    """What the dialog is built from must be what it returns, or a control
+    seeded from it cannot survive a range pick: the dialog ends, this runs
+    again, and a key it never gave back is gone."""
+    ask = self.asked ()
+    read, given = set (), set ()
+    for node in ast.walk (ask):
+      # answers['x']
+      if (isinstance (node, ast.Subscript)
+          and isinstance (node.value, ast.Name)
+          and node.value.id == 'answers'
+          and isinstance (node.slice, ast.Constant)):
+        read.add (node.slice.value)
+      # answers.get ('x', ...)
+      if (isinstance (node, ast.Call)
+          and isinstance (node.func, ast.Attribute)
+          and node.func.attr == 'get'
+          and isinstance (node.func.value, ast.Name)
+          and node.func.value.id == 'answers'
+          and node.args and isinstance (node.args[0], ast.Constant)):
+        read.add (node.args[0].value)
+      # answers = {...}, the dict it returns
+      if (isinstance (node, ast.Assign) and isinstance (node.value, ast.Dict)
+          and any (isinstance (at, ast.Name) and at.id == 'answers'
+                   for at in node.targets)):
+        given.update (key.value for key in node.value.keys
+                      if isinstance (key, ast.Constant))
+    self.assertTrue (read, 'the dialog is built from the answers')
+    self.assertTrue (given, 'the dialog returns answers')
+    self.assertEqual (sorted (read - given), [])
+
+  def test_the_layout_buttons_are_seeded (self):
+    """The bug this holds shut: picking a results range with the mouse
+    threw away the Grouped by choice.  A Select button ends the dialog and
+    it is built again, and these alone were built without their state."""
+    made = list (self.layout_buttons ())
+    self.assertEqual (len (made), 1, 'one loop makes the Grouped by radios')
+    self.assertIn ('State', made[0])
 
 
 class Translatable (unittest.TestCase):

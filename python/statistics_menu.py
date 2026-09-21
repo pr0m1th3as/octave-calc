@@ -438,9 +438,14 @@ class Analysis:
          Label = octave_layout.PICK)
     add ('FixedText', 'input_hint', 206, 35, 208, 10, MultiLine = True)
     add ('FixedText', 'by_label', 206, 49, 80, 10)
-    # One group of radio buttons, since their tab indices follow each other
-    for name in RADIO_NAMES:
-      add ('RadioButton', name, 206, 60, 95, 12)
+    # One group of radio buttons, since their tab indices follow each other.
+    # Seeded from the answers as every other control is: a Select button
+    # ends the dialog and this builds it again, so a radio left bare comes
+    # back with nothing set and fill falls to the analysis's first layout,
+    # losing what the user chose before they picked the range.
+    for name, choice in zip (RADIO_NAMES, octave_stats.BY):
+      add ('RadioButton', name, 206, 60, 95, 12,
+           State = int (choice == answers['by']))
     add ('FixedText', 'by_hint', 206, 90, 208, 30, MultiLine = True)
     # Said above the results range by an analysis the range may size
     add ('FixedText', 'output_intro', 206, 120, 208, 30, MultiLine = True)
@@ -520,7 +525,8 @@ class Analysis:
              'commands': (), 'options': dict (answers['options']),
              'folders': self.settings_list ('Folders'),
              'customs': self.settings_list ('Analyses'),
-             'function': answers.get ('function', ''), 'placed': {},
+             'function': answers.get ('function', ''),
+             'picked': list (answers.get ('picked', ())), 'placed': {},
              'stuck': False}
     if (state['function'] not in state['customs']):
       state['function'] = state['customs'][0] if state['customs'] else ''
@@ -711,6 +717,12 @@ class Analysis:
       """The folders and the analyses made of them, in place of the analysis
       list and the passage, for the one category that has neither."""
       part ('folders').getModel ().StringItemList = tuple (state['folders'])
+      # The folders picked out survive a range pick, which ends the dialog
+      # and builds it again; picking none means all of them, so an empty
+      # selection is left empty rather than made to mean something else.
+      part ('folders').getModel ().SelectedItems = tuple (
+        state['folders'].index (path) for path in state['picked']
+        if path in state['folders'])
       part ('customs').getModel ().StringItemList = tuple (state['customs'])
       if (state['customs']):
         held = state['function']
@@ -886,6 +898,9 @@ class Analysis:
     at = part ('customs').getSelectedItemPos ()
     if (0 <= at < len (state['customs'])):
       state['function'] = state['customs'][at]
+    state['picked'] = [state['folders'][n]
+                       for n in part ('folders').getSelectedItemsPos ()
+                       if 0 <= n < len (state['folders'])]
     if (analysis and analysis.get ('custom')):
       for place in range (octave_stats.CUSTOM_SLOTS):
         values['input%d' % (place + 1)] = (
@@ -898,7 +913,7 @@ class Analysis:
                'input': part ('input').getModel ().Text.strip (),
                'output': part ('output').getModel ().Text.strip (),
                'by': by, 'options': values,
-               'function': state['function']}
+               'function': state['function'], 'picked': state['picked']}
     dialog.dispose ()
     if (state['action'] != 'cancel'):
       return state['action'], answers
