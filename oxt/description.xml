@@ -24,10 +24,15 @@
   <src xlink:href="https://pr0m1th3as.github.io/octave-calc/octave-calc.update.xml"/>
  </update-information>
  <release-notes>
-  <src xlink:href="https://pr0m1th3as.github.io/octave-calc/release-notes-en.html"
+  <src xlink:href="https://pr0m1th3as.github.io/octave-calc/release-notes-en.txt"
        lang="en"/>
  </release-notes>
+ <!-- LibreOffice-minimal-version, not OpenOffice.org-minimal-version:
+      the latter is checked against the OpenOffice version LibreOffice
+      reports for compatibility, which is 4.1, so anything above that
+      refuses to install on every LibreOffice there is. -->
  <dependencies>
-  <OpenOffice.org-minimal-version value="7.4" d:name="LibreOffice 7.4"/>
+  <lo:LibreOffice-minimal-version value="7.4" d:name="LibreOffice 7.4"
+    xmlns:lo="http://libreoffice.org/extensions/description/2011"/>
  </dependencies>
 </description>

@@ -131,11 +131,12 @@ lets the sandbox work when LibreOffice itself runs under an AppArmor profile.
 | Path | Holds |
 |------|-------|
 | `COPYING`, `LICENSE.txt` | GPL v3. |
+| `docs/` | What GitHub Pages serves: the release notes and the extension update feed. |
 | `python/` | The component, the Octave runner behind it, and the settings reader. |
 | `octave/` | One Octave function per analysis, and the helpers they share. |
 | `idl/` | The interface the cell functions call, compiled into the package. |
 | `oxt/` | `description.xml`, `META-INF/`, the function registration and the settings schema. |
-| `tools/` | `build_oxt.py`, which compiles and packages the extension. |
+| `tools/` | `build_oxt.py`, which compiles and packages the extension, and `publish_release.py`, which writes `docs/` at each release. |
 | `tests/` | Tests, run with `python3 -m unittest discover tests`. |
 
 ## Licence

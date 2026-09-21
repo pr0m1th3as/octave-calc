@@ -299,6 +299,22 @@ class Described (unittest.TestCase):
         continue
       self.assertIn (href, self.build.CONTENT, href)
 
+  def test_the_minimum_is_declared_where_libreoffice_reads_it (self):
+    """LibreOffice-minimal-version lives in LibreOffice's own namespace.
+    Written in the OpenOffice description namespace it is an unknown
+    dependency, and an unknown dependency is unsatisfiable, so the
+    extension refuses to install on every LibreOffice there is.
+    OpenOffice.org-minimal-version is read instead against the OpenOffice
+    version LibreOffice reports for compatibility, which is 4.1."""
+    found = self.described.getElementsByTagNameNS (
+      'http://libreoffice.org/extensions/description/2011',
+      'LibreOffice-minimal-version')
+    self.assertEqual (len (found), 1)
+    self.assertTrue (found[0].getAttribute ('value'))
+    self.assertEqual (
+      self.described.getElementsByTagName ('OpenOffice.org-minimal-version'),
+      [])
+
   def test_the_licence_is_packaged (self):
     """A GPL extension that ships without its licence is not one."""
     self.assertIn ('COPYING', self.build.CONTENT)
@@ -367,6 +383,36 @@ class Localizable (unittest.TestCase):
     what a translator is given."""
     for prop, unused in self.valued ('CalcAddIns.xcu'):
       self.assertIn (prop, self.UNTRANSLATED + ('Description',), prop)
+
+
+class Published (unittest.TestCase):
+  """What Pages serves is written from RELEASE_NOTES and description.xml by
+  tools/publish_release.py.  Left behind, the Extension Manager offers the
+  notes of the release before this one, or an asset that is not there.
+
+  RELEASE_NOTES is the maintainer's working copy and is not in the
+  repository, so these run where it is present and are skipped where it is
+  not: a clone can build, test and install without it."""
+
+  NOTES = os.path.join (ROOT, 'RELEASE_NOTES')
+
+  def setUp (self):
+    if (not os.path.exists (self.NOTES)):
+      self.skipTest ('no RELEASE_NOTES here; only publishing needs it')
+    spec = importlib.util.spec_from_file_location (
+      'publish_release', os.path.join (ROOT, 'tools', 'publish_release.py'))
+    self.publish = importlib.util.module_from_spec (spec)
+    spec.loader.exec_module (self.publish)
+
+  def test_what_pages_serves_is_current (self):
+    for path, text in self.publish.wanted ().items ():
+      at = os.path.relpath (path, ROOT)
+      self.assertTrue (os.path.exists (path), at)
+      self.assertEqual (self.publish.read (path), text, at)
+
+  def test_the_notes_open_on_the_version_being_released (self):
+    first = self.publish.read (self.NOTES).split ('\n', 1)[0]
+    self.assertIn (self.publish.version (), first)
 
 
 class Settings (unittest.TestCase):
