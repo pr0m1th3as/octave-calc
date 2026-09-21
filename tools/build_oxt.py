@@ -30,7 +30,9 @@ Usage:
   python3 tools/build_oxt.py --remove     uninstall
 """
 
+import io
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -39,8 +41,23 @@ import zipfile
 HERE = os.path.dirname (os.path.dirname (os.path.abspath (__file__)))
 BUILD = os.path.join (HERE, 'build')
 DIST = os.path.join (HERE, 'dist')
-PACKAGE = os.path.join (DIST, 'octave-calc.oxt')
 IDENTIFIER = 'io.github.pr0m1th3as.octavecalc'
+
+# description.xml holds the version, and the package is named after it, so
+# that two builds of different versions can never arrive under one name.
+DESCRIPTION = os.path.join (HERE, 'oxt', 'description.xml')
+
+
+def version ():
+  with io.open (DESCRIPTION, encoding = 'utf-8') as source:
+    found = re.search (r'<version\s+value\s*=\s*"([^"]+)"', source.read ())
+  if (not found):
+    sys.exit ('no version in %s' % DESCRIPTION)
+  return found.group (1)
+
+
+VERSION = version ()
+PACKAGE = os.path.join (DIST, 'octave-calc-%s.oxt' % VERSION)
 
 SDK_BIN = '/usr/lib/libreoffice/sdk/bin'
 OFFICE_TYPES = ('/usr/lib/libreoffice/program/types.rdb',
@@ -74,6 +91,12 @@ CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),
            'Addons.xcu': os.path.join (HERE, 'oxt', 'Addons.xcu'),
            'icons/octave_16.png': os.path.join (HERE, 'oxt', 'icons',
                                                 'octave_16.png'),
+           'icons/octave_42.png': os.path.join (HERE, 'oxt', 'icons',
+                                                'octave_42.png'),
+           'descriptions/desc-en.txt': os.path.join (HERE, 'oxt',
+                                                     'descriptions',
+                                                     'desc-en.txt'),
+           'COPYING': os.path.join (HERE, 'COPYING'),
            'ProtocolHandler.xcu': os.path.join (HERE, 'oxt',
                                                 'ProtocolHandler.xcu'),
            'description.xml': os.path.join (HERE, 'oxt', 'description.xml'),

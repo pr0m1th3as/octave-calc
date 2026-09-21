@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <description xmlns="http://openoffice.org/extensions/description/2006"
+             xmlns:d="http://openoffice.org/extensions/description/2006"
              xmlns:xlink="http://www.w3.org/1999/xlink">
  <identifier value="io.github.pr0m1th3as.octavecalc"/>
  <version value="0.1.0"/>
@@ -10,9 +11,20 @@
   <name xlink:href="https://github.com/pr0m1th3as/octave-calc"
         lang="en">Andreas Bertsatos</name>
  </publisher>
+ <icon>
+  <default xlink:href="icons/octave_42.png"/>
+ </icon>
+ <extension-description>
+  <src xlink:href="descriptions/desc-en.txt" lang="en"/>
+ </extension-description>
+ <update-information>
+  <src xlink:href="https://pr0m1th3as.github.io/octave-calc/octave-calc.update.xml"/>
+ </update-information>
+ <release-notes>
+  <src xlink:href="https://pr0m1th3as.github.io/octave-calc/release-notes-en.html"
+       lang="en"/>
+ </release-notes>
  <dependencies>
-  <OpenOffice.org-minimal-version value="4.1"
-    d:name="LibreOffice 4.1"
-    xmlns:d="http://openoffice.org/extensions/description/2006"/>
+  <OpenOffice.org-minimal-version value="7.4" d:name="LibreOffice 7.4"/>
  </dependencies>
 </description>

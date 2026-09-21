@@ -39,7 +39,8 @@ of values and labels; measurements taken on the same subjects, a row per
 subject; each value beside the two factors it was measured under; one
 sample; or no cells at all.
 
-Four categories, forty-six analyses.
+Five categories: forty-six analyses of its own, and the Custom analysis,
+which runs one of your own Octave functions the same way.
 
 - **Group comparisons**, eleven. One-way ANOVA and two-way ANOVA, the
   two-sample, paired and one-sample t-tests, the Kruskal-Wallis and
@@ -54,6 +55,10 @@ Four categories, forty-six analyses.
 - **Experimental design**, five. Sample size, power and detectable
   difference, each solving for one quantity, and the full and two-level
   factorial designs.
+- **Custom analysis**. Your own Octave function, from a folder you add,
+  with four inputs and a field of name and value pairs, and up to three
+  results written where you say. Where the sandbox runs, a core or package
+  function may be named instead.
 
 Association tests, regression models and multivariate analyses are not there
 yet. Each will appear with the analyses that fill it.
@@ -112,7 +117,9 @@ On the user's machine:
    usual place, and the Octave packages the user's functions rely on.
 3. The Octave package `devtools`, version 0.2.1 or later, which runs the
    server and its sandbox.
-4. For cells, a sandbox: on Linux `bwrap` from the `bubblewrap` package and
+4. The Octave package `statistics`, which every analysis in the menu loads,
+   and `datatypes` beneath it. The spreadsheet functions need neither.
+5. For cells, a sandbox: on Linux `bwrap` from the `bubblewrap` package and
    `prlimit` from `util-linux`, on macOS the system's `sandbox-exec`. Windows
    has none yet, so there only the Statistics menu runs.
 
@@ -125,6 +132,7 @@ lets the sandbox work when LibreOffice itself runs under an AppArmor profile.
 |------|-------|
 | `COPYING`, `LICENSE.txt` | GPL v3. |
 | `python/` | The component, the Octave runner behind it, and the settings reader. |
+| `octave/` | One Octave function per analysis, and the helpers they share. |
 | `idl/` | The interface the cell functions call, compiled into the package. |
 | `oxt/` | `description.xml`, `META-INF/`, the function registration and the settings schema. |
 | `tools/` | `build_oxt.py`, which compiles and packages the extension. |

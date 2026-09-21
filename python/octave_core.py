@@ -35,6 +35,7 @@ travels as values.
 
 import atexit
 import hashlib
+import io
 import json
 import glob
 import os
@@ -139,6 +140,33 @@ _CACHE_LIMIT = 200
 _RANGES = {}
 _RANGES_ORDER = []
 _RANGES_LIMIT = 200
+
+
+# The version, read from the one place that holds it, so that the extension
+# and what it tells the server can never disagree.  description.xml sits
+# beside this file in the package and under oxt/ in the repository.
+DESCRIPTION = 'description.xml'
+
+VERSION_RE = re.compile (r'<version\s+value\s*=\s*"([^"]+)"')
+
+
+def version ():
+  """The extension's version, from description.xml, or 'unknown' where this
+  file stands alone."""
+  here = os.path.dirname (os.path.abspath (__file__))
+  for path in (os.path.join (here, DESCRIPTION),
+               os.path.join (os.path.dirname (here), 'oxt', DESCRIPTION)):
+    try:
+      with io.open (path, encoding = 'utf-8') as source:
+        found = VERSION_RE.search (source.read ())
+    except OSError:
+      continue
+    if (found):
+      return found.group (1)
+  return 'unknown'
+
+
+VERSION = version ()
 
 
 def octave ():
@@ -792,7 +820,7 @@ class Server:
                       daemon = True).start ()
     reply = self._request ('initialize', {
       'protocolVersion': PROTOCOL_VERSION, 'capabilities': {},
-      'clientInfo': {'name': 'octave-calc', 'version': '0.1.0'}},
+      'clientInfo': {'name': 'octave-calc', 'version': VERSION}},
       START_SECONDS)
     self.state, self.reason = sandbox_state (reply.get ('result'))
     if (self.state is None):

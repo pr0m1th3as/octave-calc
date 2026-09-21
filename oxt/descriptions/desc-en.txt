@@ -1,0 +1,16 @@
+Run GNU Octave analyses on the data in your LibreOffice Calc spreadsheet,
+without leaving Calc.
+
+Data > Statistics with GNU Octave opens one dialog holding forty-six
+analyses in four categories, group comparisons, distribution fitting,
+random numbers and experimental design, each saying what it is for and
+when to use it instead of its neighbours. A fifth category runs one of
+your own Octave functions the same way. Results are written into the
+sheet as one undoable action, and nothing is overwritten without asking.
+
+Two spreadsheet functions, OCTAVE and OCTRANGE, call an Octave function on
+the cells of your sheet from a formula.
+
+Needs GNU Octave with the devtools and statistics packages installed.
+Formulas run only inside a sandbox; the Statistics menu runs with or
+without one.

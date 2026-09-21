@@ -30,6 +30,7 @@ import math
 import os
 import sys
 import unittest
+import xml.dom.minidom
 
 ROOT = os.path.dirname (os.path.dirname (os.path.abspath (__file__)))
 sys.path.insert (0, os.path.join (ROOT, 'python'))
@@ -254,6 +255,64 @@ class Packaged (unittest.TestCase):
     for published, source in self.build.CONTENT.items ():
       if ('build' not in source):
         self.assertTrue (os.path.exists (source), published)
+
+
+class Described (unittest.TestCase):
+  """description.xml is the one place the version is written, and every file
+  it names must be in the package or the Extension Manager shows nothing
+  where the icon and the description belong."""
+
+  def setUp (self):
+    spec = importlib.util.spec_from_file_location (
+      'build_oxt', os.path.join (ROOT, 'tools', 'build_oxt.py'))
+    self.build = importlib.util.module_from_spec (spec)
+    spec.loader.exec_module (self.build)
+    self.described = xml.dom.minidom.parse (
+      os.path.join (ROOT, 'oxt', 'description.xml'))
+    self.feed = xml.dom.minidom.parse (
+      os.path.join (ROOT, 'docs', 'octave-calc.update.xml'))
+
+  def valued (self, document, tag):
+    return document.getElementsByTagName (tag)[0].getAttribute ('value')
+
+  def hrefs (self, document):
+    return [node.getAttribute ('xlink:href')
+            for node in document.getElementsByTagName ('*')
+            if node.getAttribute ('xlink:href')]
+
+  def test_the_version_is_written_once (self):
+    """octave_core reports it to the server and the build names the package
+    after it, both from description.xml."""
+    said = self.valued (self.described, 'version')
+    self.assertEqual (octave_core.VERSION, said)
+    self.assertEqual (self.build.VERSION, said)
+    self.assertTrue (self.build.PACKAGE.endswith ('octave-calc-%s.oxt' % said),
+                     self.build.PACKAGE)
+
+  def test_every_file_it_names_is_packaged (self):
+    for href in self.hrefs (self.described):
+      if (href.startswith ('http')):
+        continue
+      self.assertIn (href, self.build.CONTENT, href)
+
+  def test_the_licence_is_packaged (self):
+    """A GPL extension that ships without its licence is not one."""
+    self.assertIn ('COPYING', self.build.CONTENT)
+
+  def test_the_update_feed_matches_the_extension (self):
+    """The feed is edited by hand at each release, and a version left
+    behind offers nobody anything."""
+    self.assertEqual (self.valued (self.feed, 'identifier'),
+                      self.valued (self.described, 'identifier'))
+    self.assertEqual (self.valued (self.feed, 'version'),
+                      self.valued (self.described, 'version'))
+
+  def test_the_feed_points_at_the_package_this_build_makes (self):
+    named = os.path.basename (self.build.PACKAGE)
+    downloads = [href for href in self.hrefs (self.feed)
+                 if href.endswith ('.oxt')]
+    self.assertEqual (len (downloads), 1)
+    self.assertTrue (downloads[0].endswith ('/' + named), downloads[0])
 
 
 class CustomArgs (unittest.TestCase):
