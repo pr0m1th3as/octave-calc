@@ -302,6 +302,25 @@ class Described (unittest.TestCase):
     """A GPL extension that ships without its licence is not one."""
     self.assertIn ('COPYING', self.build.CONTENT)
 
+  def test_every_language_it_offers_has_a_file (self):
+    """A src naming a language whose file is not packaged leaves the
+    Extension Manager blank for every user in that language."""
+    for node in self.described.getElementsByTagName ('src'):
+      href = node.getAttribute ('xlink:href')
+      if (href.startswith ('http')):
+        continue
+      self.assertTrue (node.getAttribute ('lang'), href)
+      self.assertIn (href, self.build.CONTENT, href)
+
+  def test_every_packaged_description_is_offered (self):
+    """The folder is packaged wholesale, so a file added without a src
+    beside it ships and is never shown."""
+    offered = set (node.getAttribute ('xlink:href')
+                   for node in self.described.getElementsByTagName ('src'))
+    for name in self.build.CONTENT:
+      if (name.startswith ('descriptions/')):
+        self.assertIn (name, offered, name)
+
   def test_the_update_feed_matches_the_extension (self):
     """The feed is edited by hand at each release, and a version left
     behind offers nobody anything."""
@@ -316,6 +335,37 @@ class Described (unittest.TestCase):
                  if href.endswith ('.oxt')]
     self.assertEqual (len (downloads), 1)
     self.assertTrue (downloads[0].endswith ('/' + named), downloads[0])
+
+
+class Localizable (unittest.TestCase):
+  """LibreOffice chooses a value by the UI language and falls back to
+  en-US, so every translatable value carries that tag and a translation is
+  a sibling beside it.  Nothing here is read by our own code."""
+
+  FILES = ('CalcAddIns.xcu', 'Addons.xcu')
+
+  # The names a formula is written with, which stay English whatever the UI
+  # language: the first argument of OCTAVE is an Octave function's name.
+  UNTRANSLATED = ('DisplayName', 'CompatibilityName')
+
+  def valued (self, name):
+    with io.open (os.path.join (ROOT, 'oxt', name),
+                  encoding = 'utf-8') as held:
+      return re.findall (r'<prop oor:name="(\w+)"[^>]*>\s*'
+                         r'<value xml:lang="([^"]+)"', held.read ())
+
+  def test_one_language_tag_throughout (self):
+    for name in self.FILES:
+      found = self.valued (name)
+      self.assertTrue (found, name)
+      for prop, tag in found:
+        self.assertEqual (tag, 'en-US', '%s %s' % (name, prop))
+
+  def test_the_function_names_are_not_offered_for_translation (self):
+    """Their values are one word each, the name itself; a Description is
+    what a translator is given."""
+    for prop, unused in self.valued ('CalcAddIns.xcu'):
+      self.assertIn (prop, self.UNTRANSLATED + ('Description',), prop)
 
 
 class Settings (unittest.TestCase):

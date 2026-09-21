@@ -93,15 +93,21 @@ CONTENT = {'octave_calc.rdb': os.path.join (BUILD, 'octave_calc.rdb'),
                                                 'octave_16.png'),
            'icons/octave_42.png': os.path.join (HERE, 'oxt', 'icons',
                                                 'octave_42.png'),
-           'descriptions/desc-en.txt': os.path.join (HERE, 'oxt',
-                                                     'descriptions',
-                                                     'desc-en.txt'),
            'COPYING': os.path.join (HERE, 'COPYING'),
            'ProtocolHandler.xcu': os.path.join (HERE, 'oxt',
                                                 'ProtocolHandler.xcu'),
            'description.xml': os.path.join (HERE, 'oxt', 'description.xml'),
            'META-INF/manifest.xml': os.path.join (HERE, 'oxt', 'META-INF',
                                                   'manifest.xml')}
+
+# Every extension description, one file per language, so that a
+# translation is a file added beside the others and no edit here.
+DESCRIPTIONS = os.path.join (HERE, 'oxt', 'descriptions')
+
+CONTENT.update (dict (
+  ('descriptions/%s' % name, os.path.join (DESCRIPTIONS, name))
+  for name in sorted (os.listdir (DESCRIPTIONS))
+  if name.endswith ('.txt')))
 
 CONTENT.update (dict (
   ('octave/octave_calc_%s.m' % name,

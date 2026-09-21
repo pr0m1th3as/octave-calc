@@ -5,7 +5,18 @@
      list the visible arguments only: the caller is hidden.  Each parameter
      node is named exactly as the IDL parameter, which is how Calc matches
      them; DisplayName is what the wizard shows.  A node under another name
-     shows as ### in the wizard. -->
+     shows as ### in the wizard.
+
+     Every translatable value is tagged en-US, which is what LibreOffice
+     falls back to for a UI language it holds no entry for.  A translation
+     adds a sibling value with its own xml:lang beside each one; nothing
+     here is loaded or chosen by our code.
+
+     DisplayName and CompatibilityName are deliberately not translated: the
+     first argument of OCTAVE is the name of an Octave function, which is
+     English whatever the UI language, and a formula half in one language
+     reads worse than one wholly in the other.  The Description values are
+     what a translation is for. -->
 <oor:component-data xmlns:oor="http://openoffice.org/2001/registry"
                     xmlns:xs="http://www.w3.org/2001/XMLSchema"
                     oor:name="CalcAddIns" oor:package="org.openoffice.Office">
@@ -13,94 +24,94 @@
   <node oor:name="org.octavecalc.Octave" oor:op="replace">
    <node oor:name="AddInFunctions">
     <node oor:name="run" oor:op="replace">
-     <prop oor:name="DisplayName"><value xml:lang="en">OCTAVE</value></prop>
-     <prop oor:name="Description"><value xml:lang="en">Runs an Octave function on its arguments and returns its result.</value></prop>
+     <prop oor:name="DisplayName"><value xml:lang="en-US">OCTAVE</value></prop>
+     <prop oor:name="Description"><value xml:lang="en-US">Runs an Octave function on its arguments and returns its result.</value></prop>
      <prop oor:name="Category"><value>Add-In</value></prop>
-     <prop oor:name="CompatibilityName"><value xml:lang="en">OCTAVE</value></prop>
+     <prop oor:name="CompatibilityName"><value xml:lang="en-US">OCTAVE</value></prop>
      <node oor:name="Parameters">
       <node oor:name="name" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">name</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Name of the Octave function to run.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">name</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Name of the Octave function to run.</value></prop>
       </node>
       <node oor:name="arg1" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg1</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg1</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg2" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg2</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg2</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg3" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg3</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg3</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg4" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg4</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg4</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg5" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg5</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg5</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg6" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg6</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg6</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg7" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg7</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg7</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg8" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg8</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg8</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg9" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg9</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg9</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg10" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg10</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg10</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg11" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg11</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg11</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg12" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg12</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg12</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg13" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg13</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg13</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg14" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg14</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg14</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg15" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg15</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg15</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
       <node oor:name="arg16" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">arg16</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">arg16</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Argument of the Octave function: a number, text, a range, or OCTRANGE of a range whose dates, times or logical values matter.</value></prop>
       </node>
      </node>
     </node>
     <node oor:name="octrange" oor:op="replace">
-     <prop oor:name="DisplayName"><value xml:lang="en">OCTRANGE</value></prop>
-     <prop oor:name="Description"><value xml:lang="en">Marks a range for OCTAVE so that its dates, times, logical values and errors keep their kind, as one argument or as name-value pairs.</value></prop>
+     <prop oor:name="DisplayName"><value xml:lang="en-US">OCTRANGE</value></prop>
+     <prop oor:name="Description"><value xml:lang="en-US">Marks a range for OCTAVE so that its dates, times, logical values and errors keep their kind, as one argument or as name-value pairs.</value></prop>
      <prop oor:name="Category"><value>Add-In</value></prop>
-     <prop oor:name="CompatibilityName"><value xml:lang="en">OCTRANGE</value></prop>
+     <prop oor:name="CompatibilityName"><value xml:lang="en-US">OCTRANGE</value></prop>
      <node oor:name="Parameters">
       <node oor:name="data" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">range</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">Range of cells, given as a reference.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">range</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">Range of cells, given as a reference.</value></prop>
       </node>
       <node oor:name="mode" oor:op="replace">
-       <prop oor:name="DisplayName"><value xml:lang="en">mode</value></prop>
-       <prop oor:name="Description"><value xml:lang="en">How OCTAVE uses the range: "data", the default, as one argument, or "pairs", as name-value arguments from two columns, name then value.</value></prop>
+       <prop oor:name="DisplayName"><value xml:lang="en-US">mode</value></prop>
+       <prop oor:name="Description"><value xml:lang="en-US">How OCTAVE uses the range: "data", the default, as one argument, or "pairs", as name-value arguments from two columns, name then value.</value></prop>
       </node>
      </node>
     </node>

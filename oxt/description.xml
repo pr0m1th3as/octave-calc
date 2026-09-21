@@ -14,6 +14,9 @@
  <icon>
   <default xlink:href="icons/octave_42.png"/>
  </icon>
+ <!-- A translation adds a file to oxt/descriptions/ and a src beside this
+      one.  The whole folder is packaged, so the build needs no edit.  This
+      schema matches on lang, where the .xcu files carry xml:lang. -->
  <extension-description>
   <src xlink:href="descriptions/desc-en.txt" lang="en"/>
  </extension-description>
