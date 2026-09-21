@@ -118,8 +118,13 @@ def list_label (category):
 # take them.  The null standard deviation is taken by the z and t tests and
 # ignored by the rest, since the dialog cannot leave a number blank.
 POWER_TEST = {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
-              'hint': 'Which test the study will use, the answer being '
-                      'the size that test needs and no other.',
+              'hint': 'Which test the study will use.  The answer is '
+                      'the one that test needs, and holds for no other.',
+              'help': 'Every test spends its observations differently, so '
+                      'the sample size, the power and the detectable '
+                      'difference each depend on which one you mean to '
+                      'run.  A two-sample t-test counts its figure per '
+                      'group; the rest count the study as a whole.',
               'choices': (('t', 'One-sample or paired t-test'),
                           ('t2', 'Two-sample t-test'),
                           ('z', 'One-sample z-test'),
@@ -129,23 +134,36 @@ POWER_TEST = {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
               'default': 't'}
 
 NULL_VALUE = {'name': 'nullvalue', 'kind': 'number', 'label': 'Null value:',
-              'hint': 'The figure the study is testing against, read as '
-                      'a mean, a proportion, a variance or a correlation '
+              'hint': 'The figure the study is testing against, read '
                       'by the test chosen above.',
+              'help': 'What the study assumes until the data say '
+                      'otherwise: a mean for the t and z tests, a '
+                      'variance for the chi-square test, a proportion '
+                      'for the test of a proportion and a correlation '
+                      'for the test of a correlation.',
               'accepts': 'a number', 'minimum': float ('-inf'),
               'maximum': float ('inf'), 'default': '5'}
 
 NULL_SD = {'name': 'nullsd', 'kind': 'number',
            'label': 'Null standard deviation:',
-           'hint': 'How widely the values scatter under the null '
-                   'hypothesis. Taken by the t and z tests and ignored by '
-                   'the others.',
+           'hint': 'How widely the values scatter if the null value '
+                   'is true.  The t and z tests use it; the others '
+                   'ignore it.',
+           'help': 'The standard deviation the study expects among its '
+                   'observations.  A wider scatter needs more '
+                   'observations to see the same difference.  Only the t '
+                   'and z tests take it: the tests of a variance, a '
+                   'proportion and a correlation get their scatter from '
+                   'the null value itself.',
            'accepts': 'a number greater than 0', 'minimum': 0.0,
            'maximum': float ('inf'), 'default': '2'}
 
 SAMPLE_SIZE = {'name': 'n', 'kind': 'number', 'label': 'Sample size:',
                'hint': 'Observations in the study, or in each group '
                        'where the test compares two.',
+               'help': 'For a two-sample t-test this is the size of each '
+                       'group, so 30 here means 60 observations in all.  '
+                       'Every other test counts the study as a whole.',
                'accepts': 'a whole number of 2 or more', 'minimum': 1.0,
                'maximum': float ('inf'), 'whole': True, 'default': '30'}
 
@@ -438,10 +456,14 @@ TAIL_MEANS_SAMPLE = {'name': 'tail', 'kind': 'choice',
 # are, and a row of the list buys a line of what the rows below it say.
 DISTRIBUTION_FIT = {'name': 'distname', 'kind': 'choice',
                     'label': 'Distribution:',
-                    'hint': 'The distribution fitted to the sample.',
-                    'help': 'The distribution fitted to the sample, whose '
-                            'parameters the results report with a '
-                            'confidence interval each.',
+                    'hint': 'The family of curve fitted to your '
+                            'sample.',
+                    'help': 'Normal is the usual starting point.  Kernel '
+                            'follows the sample itself and assumes no '
+                            'shape at all, which suits a sample with two '
+                            'humps or a long tail.  The results report '
+                            'each fitted parameter with a confidence '
+                            'interval.',
                     'choices': tuple ((name, name) for name in FITTED),
                     'rows': 3, 'default': 'Normal'}
 
@@ -548,8 +570,8 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 ANALYSES = {
   'KruskalWallis': {
     'category': 'Group comparisons',
-    'results': '8 columns wide, and 14 rows for two groups, 17 for '
-                 'three, 21 for four',
+    'results': '8 columns, and 14 rows for two groups, 17 for three, 21 '
+                 'for four',
     'input': 'range',
     'title': 'Kruskal-Wallis Test',
     'function': 'octave_calc_kruskalwallis',
@@ -593,8 +615,8 @@ ANALYSES = {
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova1': {
     'category': 'Group comparisons',
-    'results': '8 columns wide, and 14 rows for two groups, 17 for '
-                 'three, 21 for four',
+    'results': '8 columns, and 14 rows for two groups, 17 for three, 21 '
+                 'for four',
     'input': 'range',
     'title': 'One-way ANOVA',
     'function': 'octave_calc_anova1',
@@ -652,7 +674,7 @@ ANALYSES = {
        'default': 'equal'})},
   'Ttest2': {
     'category': 'Group comparisons',
-    'results': '8 columns wide and 9 rows tall',
+    'results': '8 columns and 9 rows',
     'input': 'range',
     'title': 'Two-sample t-test',
     'function': 'octave_calc_ttest2',
@@ -706,7 +728,7 @@ ANALYSES = {
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Ranksum': {
     'category': 'Group comparisons',
-    'results': '8 columns wide and 9 rows tall',
+    'results': '8 columns and 9 rows',
     'input': 'range',
     'title': 'Mann-Whitney U test',
     'function': 'octave_calc_ranksum',
@@ -759,8 +781,8 @@ ANALYSES = {
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'VarTestN': {
     'category': 'Group comparisons',
-    'results': '8 columns wide, and 11 rows for three groups, one more '
-                 'for each group after that; two groups take 14',
+    'results': '8 columns, and 11 rows for three groups, one more for '
+                 'each group after that; two groups take 14',
     'input': 'range',
     'title': 'Equal variances',
     'function': 'octave_calc_vartestn',
@@ -805,8 +827,8 @@ ANALYSES = {
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova2': {
     'category': 'Group comparisons',
-    'results': '8 columns wide, and 22 rows for two levels of each '
-                 'factor, more as the levels grow',
+    'results': '8 columns, and 22 rows for two levels of each factor, '
+                 'more as the levels grow',
     'input': 'factors',
     'title': 'Two-way ANOVA',
     'function': 'octave_calc_anova2',
@@ -858,7 +880,7 @@ ANALYSES = {
       ALPHA_LEVEL)},
   'TtestPaired': {
     'category': 'Group comparisons',
-    'results': '8 columns wide and 10 rows tall',
+    'results': '8 columns and 10 rows',
     'input': 'matched',
     'title': 'Paired t-test',
     'function': 'octave_calc_ttestpaired',
@@ -877,7 +899,7 @@ ANALYSES = {
     'options': (TAIL_MEANS, ALPHA_LEVEL)},
   'SignRank': {
     'category': 'Group comparisons',
-    'results': '8 columns wide and 10 rows tall',
+    'results': '8 columns and 10 rows',
     'input': 'matched',
     'title': 'Wilcoxon signed-rank test',
     'function': 'octave_calc_signrank',
@@ -895,7 +917,7 @@ ANALYSES = {
     'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
   'SignTest': {
     'category': 'Group comparisons',
-    'results': '8 columns wide and 10 rows tall',
+    'results': '8 columns and 10 rows',
     'input': 'matched',
     'title': 'Sign test',
     'function': 'octave_calc_signtest',
@@ -912,8 +934,8 @@ ANALYSES = {
     'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
   'Friedman': {
     'category': 'Group comparisons',
-    'results': '8 columns wide, and 14 rows for two measurements, 17 '
-                 'for three, 21 for four',
+    'results': '8 columns, and 14 rows for two measurements, 17 for '
+                 'three, 21 for four',
     'input': 'matched',
     'title': 'Friedman test',
     'function': 'octave_calc_friedman',
@@ -948,6 +970,7 @@ ANALYSES = {
        'default': 'holm'},
       ALPHA_LEVEL)},
   'Normality': {
+    'results': '8 columns and 13 rows, fewer where a test could not run',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Tests of normality',
@@ -965,6 +988,9 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (ALPHA_LEVEL,)},
   'Chi2gof': {
+    'results': '8 columns, and a row for each bin counted with about a '
+                 'dozen above them; the ten it takes by default give 21 '
+                 'rows',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Goodness of fit',
@@ -982,14 +1008,21 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (DISTRIBUTION_FIT,
                 {'name': 'nbins', 'kind': 'number', 'label': 'Bins:',
-                 'hint': 'How many bins to count the sample into. Bins '
-                         'expecting too few values are joined, so fewer '
-                         'may be counted. 10 by default.',
+                 'hint': 'How many bins the sample is counted into.  '
+                         '10 by default.',
+                 'help': 'The test compares how many values fall in each '
+                         'bin against how many the fitted distribution '
+                         'expects there.  Bins expecting too few values '
+                         'are joined with their neighbours, so fewer may '
+                         'be counted than you ask for, and asking for '
+                         'many on a small sample can leave the test '
+                         'nothing to work with.',
                  'accepts': 'a whole number of 2 or more',
                  'minimum': 1.0, 'maximum': float ('inf'), 'whole': True,
                  'default': '10'},
                 ALPHA_LEVEL)},
   'Fitdist': {
+    'results': '8 columns, and 14 rows plus one per curve point',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Distribution fitting',
@@ -1007,17 +1040,33 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (DISTRIBUTION_FIT,
                 {'name': 'curve', 'kind': 'radios', 'label': 'Curve at:',
-                 'hint': 'Where the curve is read.',
+                 'hint': 'Where the fitted curve is worked out.',
+                 'help': 'Only where one is asked for below.  At each '
+                         'value of the sample gives a curve you '
+                         'can plot against the data, one row per value, '
+                         'in the order the sample is read.  A hundred '
+                         'even points spreads them between the smallest '
+                         'and largest value instead, which draws a '
+                         'smoother line and always takes a hundred '
+                         'rows.',
                  'choices': (('sample', 'at each value of the sample'),
                              ('grid', 'at a hundred even points')),
                  'default': 'sample'},
                 {'name': 'parts', 'kind': 'checks', 'label': 'Curve holds:',
-                 'hint': 'Tick none of them and the fit is written alone.',
+                 'hint': 'Tick neither and only the fit is written.',
+                 'help': 'What the curve above holds.  Probability '
+                         'density is the height of the '
+                         'curve, what a histogram is compared against.  '
+                         'Cumulative probability is the share of the '
+                         'distribution at or below each point, running '
+                         'from 0 to 1.  Tick both for a column of '
+                         'each.',
                  'choices': (('pdf', 'probability density'),
                              ('cdf', 'cumulative probability')),
                  'default': ''},
                 ALPHA_LEVEL)},
   'Isoutlier': {
+    'results': '8 columns and 7 rows',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Outliers',
@@ -1035,9 +1084,17 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (
       {'name': 'method', 'kind': 'choice', 'label': 'Method:',
-       'hint': 'How far from what centre a value must sit to be called '
-               'an outlier. The median method is the one the outliers '
-               'themselves do not move.',
+       'hint': 'How far from the centre, and from which centre, a '
+               'value must sit to be called an outlier.',
+       'help': 'Median deviations from the median is the safe choice: '
+               'the outliers themselves barely move the median, so they '
+               'cannot hide one another.  Standard deviations from the '
+               'mean is the familiar rule, but both the mean and the '
+               'deviation are pulled by the very values you are looking '
+               "for.  Interquartile ranges from the quartiles is the "
+               "rule a box plot draws.  Grubbs' test and the generalized "
+               'extreme Studentized deviate are formal tests, and both '
+               'take the rest of the sample to be normal.',
        'choices': (('median', 'median deviations from the median'),
                    ('mean', 'standard deviations from the mean'),
                    ('quartiles', 'interquartile ranges from the quartiles'),
@@ -1045,13 +1102,17 @@ ANALYSES = {
                    ('gesd', 'generalized extreme Studentized deviate')),
        'width': 130, 'default': 'median'},
       {'name': 'factor', 'kind': 'number', 'label': 'Factor:',
-       'hint': 'How far out a value must sit, in the units the method '
-               'counts in. 0 leaves the method the threshold of its own.',
+       'hint': 'How far out a value must sit, counted in the units '
+               'of the method above.  0 leaves each method its own.',
+       'help': 'Each method counts distance in its own units: median or '
+               'standard deviations, or interquartile ranges.  A larger '
+               'factor calls fewer values outliers.  0 leaves the method '
+               'the threshold it uses by default.',
        'accepts': 'a number of 0 or more', 'minimum': -1.0,
        'maximum': float ('inf'), 'default': '0'})},
   'Ttest1': {
     'category': 'Group comparisons',
-    'results': '8 columns wide and 8 rows tall',
+    'results': '8 columns and 8 rows',
     'input': 'sample',
     'title': 'One-sample t-test',
     'function': 'octave_calc_ttest1',
@@ -1077,6 +1138,8 @@ ANALYSES = {
        'maximum': float ('inf'), 'default': '0'},
       TAIL_MEANS_SAMPLE, ALPHA_LEVEL)},
   'FullFactorial': {
+    'results': 'a column for the run number and one per factor, with four '
+                 'rows above the runs: 2 3 3 gives 22 rows by 4 columns',
     'category': 'Experimental design',
     'title': 'Full factorial design',
     'function': 'octave_calc_fullfact',
@@ -1091,11 +1154,18 @@ ANALYSES = {
     'layouts': (),
     'options': (
       {'name': 'levels', 'kind': 'numbers', 'label': 'Levels per factor:',
-       'hint': 'One number per factor, such as 2 3 3, which crosses a '
-               'factor of two levels with two of three and gives 18 runs.',
+       'hint': 'One number per factor, such as 2 3 3, which crosses '
+               'a factor of two levels with two of three.',
+       'help': 'Each number is how many levels that factor takes, and '
+               'the design lists every combination of them: 2 3 3 gives '
+               '18 runs, one to a row, with a column for the run number '
+               'and one for each factor.',
        'accepts': 'one whole number per factor, each 2 or more',
        'minimum': 1.0, 'maximum': 1000.0, 'whole': True, 'default': '2 3 3'},)},
   'TwoLevelFactorial': {
+    'results': 'a column for the run number and one per factor, with four '
+                 'rows above the runs: five factors give 36 rows by 6 '
+                 'columns',
     'category': 'Experimental design',
     'title': 'Two-level factorial design',
     'function': 'octave_calc_ff2n',
@@ -1108,11 +1178,17 @@ ANALYSES = {
     'layouts': (),
     'options': (
       {'name': 'factors', 'kind': 'number', 'label': 'Factors:',
-       'hint': 'How many factors to set low or high. Each one doubles '
-               'the number of runs: five factors give 32.',
+       'hint': 'How many factors to set low or high.  Each one '
+               'doubles the runs: five factors give 32.',
+       'help': 'Every factor takes two levels, written -1 and 1, and the '
+               'design lists every combination of them: three factors '
+               'give 8 runs, five give 32 and ten give 1024, one to a '
+               'row, with a column for the run number and one for each '
+               'factor.',
        'accepts': 'a whole number from 1 to 15',
        'minimum': 0.0, 'maximum': 16.0, 'whole': True, 'default': '3'},)},
   'SampleSize': {
+    'results': '2 columns and 10 rows',
     'category': 'Experimental design',
     'title': 'Sample size',
     'function': 'octave_calc_sampsize',
@@ -1126,19 +1202,26 @@ ANALYSES = {
     'layouts': (),
     'options': (POWER_TEST, NULL_VALUE, NULL_SD,
                 {'name': 'p1', 'kind': 'number', 'label': 'Alternative value:',
-                 'hint': 'The value worth detecting, read as a mean, a '
-                         'proportion, a variance or a correlation by the '
-                         'test chosen above.',
+                 'hint': 'The value worth detecting, read by the test '
+                         'chosen above.',
+                 'help': 'The figure you would not want to miss.  The '
+                         'further it lies from the null value, the fewer '
+                         'observations it takes to see it, which makes '
+                         'this the strongest lever on the answer.',
                  'accepts': 'a number', 'minimum': float ('-inf'),
                  'maximum': float ('inf'), 'default': '6'},
                 {'name': 'power', 'kind': 'number', 'label': 'Power:',
-                 'hint': 'The chance of detecting that alternative if '
-                         'it is true. Must exceed the significance '
-                         'level.',
+                 'hint': 'The chance of detecting that difference if '
+                         'it is real.  0.9 by default.',
+                 'help': 'The chance the study ends by calling the '
+                         'difference real when it truly is.  0.9 accepts '
+                         'one chance in ten of missing it.  It must be '
+                         'greater than the significance level.',
                  'accepts': 'a number greater than 0 and less than 1',
                  'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
                 ALPHA_LEVEL)},
   'TestPower': {
+    'results': '2 columns and 10 rows',
     'category': 'Experimental design',
     'title': 'Power',
     'function': 'octave_calc_testpower',
@@ -1151,13 +1234,17 @@ ANALYSES = {
     'layouts': (),
     'options': (POWER_TEST, NULL_VALUE, NULL_SD,
                 {'name': 'p1', 'kind': 'number', 'label': 'Alternative value:',
-                 'hint': 'The value worth detecting, read as a mean, a '
-                         'proportion, a variance or a correlation by the '
-                         'test chosen above.',
+                 'hint': 'The value worth detecting, read by the test '
+                         'chosen above.',
+                 'help': 'The figure you would not want to miss.  The '
+                         'further it lies from the null value, the fewer '
+                         'observations it takes to see it, which makes '
+                         'this the strongest lever on the answer.',
                  'accepts': 'a number', 'minimum': float ('-inf'),
                  'maximum': float ('inf'), 'default': '6'},
                 SAMPLE_SIZE, ALPHA_LEVEL)},
   'Detectable': {
+    'results': '2 columns and 10 rows',
     'category': 'Experimental design',
     'title': 'Detectable difference',
     'function': 'octave_calc_detectable',
@@ -1169,9 +1256,12 @@ ANALYSES = {
     'layouts': (),
     'options': (POWER_TEST, NULL_VALUE, NULL_SD,
                 {'name': 'power', 'kind': 'number', 'label': 'Power:',
-                 'hint': 'The chance of detecting that alternative if '
-                         'it is true. Must exceed the significance '
-                         'level.',
+                 'hint': 'The chance of detecting that difference if '
+                         'it is real.  0.9 by default.',
+                 'help': 'The chance the study ends by calling the '
+                         'difference real when it truly is.  0.9 accepts '
+                         'one chance in ten of missing it.  It must be '
+                         'greater than the significance level.',
                  'accepts': 'a number greater than 0 and less than 1',
                  'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
                 SAMPLE_SIZE, ALPHA_LEVEL)}}
@@ -1200,21 +1290,29 @@ def accepts_text (bounds):
 # written; the tooltip says the rest.  A generator returns the numbers and
 # nothing else, so the size asked for is the size written.
 DRAW_ROWS = {'name': 'nrows', 'kind': 'number', 'label': 'Rows:',
-             'hint': 'Set the size of the returned cell range.',
-             'help': 'Set the size of the returned cell range.  A results '
-                     'range of more than one cell sets it instead.',
+             'hint': 'How many numbers to draw, and in what shape.',
+             'help': 'Rows of numbers in the draw.  Selecting a results '
+                     'range of more than one cell sets the size instead, '
+                     'and these two fields give way to it.',
              'accepts': 'a whole number of 1 or more', 'minimum': 0.0,
              'maximum': INF, 'whole': True, 'default': '10'}
 
 DRAW_COLS = dict (DRAW_ROWS, name = 'ncols', label = 'Columns:',
+                  help = 'Columns of numbers in the draw.  Selecting a '
+                         'results range of more than one cell sets the '
+                         'size instead, and these two fields give way '
+                         'to it.',
                   default = '1')
 
 DRAW_SEED = {'name': 'seed', 'kind': 'numbers', 'label': 'Seed:',
              'hint': 'Set a seed to draw the same numbers again.  Leave it '
                      'empty and one is chosen for you.',
-             'help': 'Set a seed to draw the same numbers again.  Leave it '
-                     'empty and one is chosen at the time.  The seed is '
-                     'written above the numbers either way.',
+             'help': 'The same seed draws the same numbers again, '
+                     'which is what makes a draw repeatable.  Leave it '
+                     'empty and one is taken from the clock.  Every '
+                     'generator with a state of its own is seeded, not '
+                     'the usual two alone, so a Poisson or a gamma draw '
+                     'repeats as well.',
              'accepts': 'a whole number of 0 or more, or nothing at all',
              'minimum': -1.0, 'maximum': INF, 'whole': True,
              'optional': True, 'default': ''}
@@ -1233,6 +1331,8 @@ for _name, _detail, _parameters in GENERATORS:
     'layouts': (),
     'sized': ('nrows', 'ncols'),
     'seeded': 'seed',
+    'results': 'the numbers alone, at the size the Rows and Columns '
+               'below give',
     'heading': 'Distribution parameters:',
     'options': (
       {'name': 'distname', 'kind': 'fixed', 'label': 'Distribution:',
@@ -1276,14 +1376,30 @@ ANALYSES['Custom'] = {
      'label': 'Input %d:' % (place + 1),
      'hint': ('A range such as A1:B10, or a value typed out.' if place == 0
               else ''),
+     'help': 'Argument %d of the function, either the cells of a range, '
+             'picked with the button beside it or typed as A1:B10, or a '
+             'value typed out.  Fill the inputs from the first: a gap is '
+             'refused rather than passed as an empty value.'
+             % (place + 1),
      'default': ''}
     for place in range (CUSTOM_SLOTS))
     + ({'name': 'pairs', 'kind': 'text', 'label': 'Pairs:',
         'hint': "Typed as a cell, such as {'Name', 2.3, 'Next', [2, 3]}.",
+        'help': 'Name and value pairs, passed after the last filled '
+                "input, as a function takes 'Name', 2.3 at the end of "
+                'its arguments.  Typed as one cell, such as '
+                "{'Name', 2.3, 'Next', [2, 3]}, and left empty where the "
+                'function takes none.',
         'default': ''},)
     + tuple (
     {'name': 'output%d' % (place + 1), 'kind': 'text',
-     'label': 'Output %d:' % (place + 1), 'hint': '', 'default': ''}
+     'label': 'Output %d:' % (place + 1), 'hint': '',
+     'help': 'Where result %d of the function is written: a single cell '
+             'takes a result of any size, and a range of cells must '
+             'match it exactly.  The function is asked for as many '
+             'results as there are slots filled, from the first.'
+             % (place + 1),
+     'default': ''}
     for place in range (CUSTOM_OUTPUTS))}
 
 

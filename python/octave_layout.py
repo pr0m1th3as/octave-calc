@@ -196,22 +196,23 @@ def results_hint (command):
   sized = octave_stats.ANALYSES[command].get ('results')
   if (not sized):
     return RESULTS_HINT
-  return ('The cell the results start from.  They grow right and down '
-          'from it, %s.' % sized)
+  return 'The top left cell.  The results fill %s.' % sized
 
 RESULTS_HELP = ('One cell, the top left corner of the results.  They fill '
                 'right and down from it, and you are asked before anything '
                 'already in the way is overwritten.')
 
-RANGE_HINT = 'The cell range the results are written into, which is the size '\
-             'of the draw.'
+RANGE_HINT = 'The cells the draw fills.  Nothing is written above the '\
+             'numbers.'
 
-RANGE_HELP = ('A range of more than one cell is the size of the draw as well '
-              'as its place, and the Rows and Columns fields give way to it.')
+RANGE_HELP = ('A range of more than one cell is the size of the draw as '
+              'well as its place, and the Rows and Columns fields give way '
+              'to it.  The numbers fill it exactly: nothing is written '
+              'above them or beside them.')
 
-SIZE_INTRO = ('Two ways to set the size of the returned cell range: select '
-              'the range itself, or select one cell and set the Rows and '
-              'Columns below.')
+SIZE_INTRO = ('Two ways to set the size of the draw: select the cells it '
+              'fills, or select a single cell and set the Rows and Columns '
+              'below.')
 
 # The Custom analysis draws its own side: two headed groups of slots, a
 # button on each to pick a range with the mouse, and no room for a hint
@@ -505,7 +506,8 @@ def slot_plan (column, name, option, picking):
   """One Custom slot: its name, the field, and the button beside it."""
   column.put ('%s_label' % name, LEFT, SLOT_LABEL, LINE,
               label = option['label'])
-  column.put ('%s_text' % name, SLOT_LEFT, SLOT_WIDTH, BOX)
+  column.put ('%s_text' % name, SLOT_LEFT, SLOT_WIDTH, BOX,
+              help = option.get ('help', option['hint']))
   column.block ('%s_pick' % name, PICK_LEFT, PICK_WIDTH, BUTTON,
                 label = PICK, help = picking)
   column.gap ()

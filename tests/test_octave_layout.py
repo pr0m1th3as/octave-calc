@@ -179,36 +179,51 @@ class Hints (unittest.TestCase):
     self.assertIn ('the group sizes choose',
                    self.p_value ('Ranksum')['help'])
 
-  def test_every_option_of_a_group_comparison_teaches_on_hover (self):
+  def test_every_option_teaches_on_hover (self):
     """The hint says it short and the tooltip says it at length.  Where
     the two are the same string, hovering adds nothing and the option is
-    left with one sentence to do both jobs."""
+    left with one sentence to do both jobs.  A parameter row carries no
+    hint of its own, so its tooltip is the only words it has, and an
+    option of kind 'fixed' is never drawn."""
     for command, analysis in octave_stats.ANALYSES.items ():
-      if (analysis.get ('category') != 'Group comparisons'):
-        continue
       for option in analysis['options']:
+        if (option['kind'] == 'fixed' or 'note' in option):
+          continue
         where = '%s %s' % (command, option['name'])
         self.assertIn ('help', option, where)
         self.assertGreater (len (option['help']), len (option['hint']),
                             where)
 
-  def test_every_group_comparison_says_how_much_room_it_needs (self):
+  def test_every_parameter_row_says_what_it_takes (self):
+    """A parameter row is drawn as its symbol, its name in words and a
+    field, with no room for a hint, so the tooltip carries both."""
+    for command, analysis in octave_stats.ANALYSES.items ():
+      for option in analysis['options']:
+        if ('note' not in option):
+          continue
+        words = option.get ('help', option['hint'])
+        where = '%s %s' % (command, option['name'])
+        self.assertIn (option['note'].split () [0], words.lower (), where)
+        self.assertIn ('Takes', words, where)
+
+  def test_every_analysis_says_how_much_room_it_needs (self):
     """The size of the results is read before the analysis is run, the
     whole point of it being to choose a corner with room below and to the
-    right of it."""
+    right of it.  The Custom analysis runs the user's own function and
+    cannot know."""
     for command, analysis in octave_stats.ANALYSES.items ():
-      if (analysis.get ('category') != 'Group comparisons'):
+      if (analysis.get ('custom')):
         continue
+      self.assertIn ('results', analysis, command)
       words = octave_layout.plan (command)['output_hint']['label']
-      self.assertIn ('8 columns', words, command)
       self.assertNotEqual (words, octave_layout.RESULTS_HINT, command)
+      self.assertIn (analysis['results'], words, command)
 
   def test_an_analysis_without_a_size_keeps_the_plain_words (self):
-    self.assertEqual (
-      octave_layout.plan ('Fitdist')['output_hint']['label'],
-      octave_layout.RESULTS_HINT)
+    self.assertEqual (octave_layout.results_hint ('Custom'),
+                      octave_layout.RESULTS_HINT)
 
-  def test_no_hint_of_a_group_comparison_speaks_of_a_layout (self):
+  def test_no_hint_speaks_of_a_layout (self):
     """Nothing on screen is called a layout; the control the word meant
     is labelled Grouped by."""
     for kind in ('range', 'matched', 'factors', 'sample'):
