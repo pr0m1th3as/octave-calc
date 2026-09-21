@@ -130,7 +130,7 @@ lets the sandbox work when LibreOffice itself runs under an AppArmor profile.
 
 | Path | Holds |
 |------|-------|
-| `COPYING`, `LICENSE.txt` | GPL v3. |
+| `COPYING`, `LICENSE.txt` | GPL v3 or later. |
 | `docs/` | What GitHub Pages serves: the release notes and the extension update feed. |
 | `python/` | The component, the Octave runner behind it, and the settings reader. |
 | `octave/` | One Octave function per analysis, and the helpers they share. |
@@ -141,4 +141,5 @@ lets the sandbox work when LibreOffice itself runs under an AppArmor profile.
 
 ## Licence
 
-GNU General Public License version 3. See `COPYING`.
+GNU General Public License, version 3 or (at your option) any later
+version. See `COPYING`.

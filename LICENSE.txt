@@ -1,2 +1,3 @@
 All software in the 'octave-calc' extension is published under the
-GNU General Public License version 3 (GPLv3).
+GNU General Public License, either version 3 of the License, or (at your
+option) any later version, as every source file states.
