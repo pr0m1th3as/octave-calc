@@ -382,7 +382,7 @@ class DialogControls (unittest.TestCase):
 
 class Registry (unittest.TestCase):
 
-  OPTIONAL = {'sized', 'seeded', 'listed', 'heading', 'custom'}
+  OPTIONAL = {'sized', 'seeded', 'listed', 'heading', 'custom', 'results'}
 
   def test_every_analysis_is_complete (self):
     for command, analysis in octave_stats.ANALYSES.items ():

@@ -86,29 +86,32 @@ RADIO_STEP = 100
 
 # What the input range holds, by the kind of input the analysis reads.
 INPUT_HINT = {
-  'range': 'The cells holding the values of every group, and their names '
-           'where the layout says so.',
-  'matched': 'The cells holding every measurement of every subject, and the '
-             'names of the measurements.',
-  'factors': 'The cells holding each value and the two factors it was '
-             'measured under.',
-  'sample': 'The cells holding the sample: one column, or one row, of '
-            'values.'}
+  'range': 'Select the cells holding your data, the group names included '
+           'if your sheet has them.',
+  'matched': 'Select the cells holding every measurement of every '
+             'subject, their names included if your sheet has them.',
+  'factors': 'Select the cells holding your values and the two factors '
+             'each value was measured under.',
+  'sample': 'Select the cells holding your sample, one column or one row '
+            'of values.'}
 
 # The same, at length, on hovering over the field.
 INPUT_HELP = {
-  'range': 'The range holding the data, such as Sheet1.A1:C20, or A1:C20 on '
-           'the sheet in front.  Numbers and empty cells, with the group '
-           'names the layout calls for.',
-  'matched': 'The range holding the data, such as Sheet1.A1:C20, or A1:C20 '
-             'on the sheet in front.  One row is one subject, measured once '
-             'under each condition.',
-  'factors': 'The range holding the data, such as Sheet1.A1:C20, or A1:C20 '
-             'on the sheet in front.  Three columns: the values and the two '
-             'factors each was measured under.',
-  'sample': 'The range holding the data, such as Sheet1.A1:A20, or A1:A20 '
-            'on the sheet in front.  One column, or one row, of numbers and '
-            'empty cells.'}
+  'range': 'The range holding your data, such as A1:C20 on the sheet in '
+           'front, or Sheet1.A1:C20 on another.  It may hold numbers and '
+           'empty cells, and the group names where the arrangement you '
+           'choose below reads them.',
+  'matched': 'The range holding your data, such as A1:C20 on the sheet in '
+             'front, or Sheet1.A1:C20 on another.  Each subject is measured '
+             'once under every condition, so every row, or every column, '
+             'must be the same length.',
+  'factors': 'The range holding your data, such as A1:C20 on the sheet '
+             'in front, or Sheet1.A1:C20 on another.  Three columns: the '
+             'value, and the level of each of the two factors it was '
+             'measured under.',
+  'sample': 'The range holding your sample, such as A1:A20 on the sheet '
+            'in front, or Sheet1.A1:A20 on another.  One column, or one row, '
+            'of numbers and empty cells.'}
 
 # What the chooser under the input range is called, and what it says under
 # itself, by the kind of input.  Matched measurements are not independent
@@ -118,57 +121,87 @@ BY_LABEL = {'range': 'Grouped by:', 'matched': 'Measurements in:',
             'factors': 'Factors in:', 'sample': 'Sample in:'}
 
 BY_HINT = {
-  'range': 'Columns or Rows: one group each, whose first cell may hold its '
-           'name.  Labels: two columns, the values and the group of each '
-           'value.',
-  'matched': 'Columns or Rows: one measurement each, taken on the same '
-             'subjects in the same order.  A first cell may name it; a '
-             'subject missing any is left out.',
-  'factors': 'Three columns: the values and the two factors each was '
-             'measured under, in either order.  A first row of text names '
-             'the two factors.',
-  'sample': 'One column, or one row, of values.  Its first cell may hold '
-            'the name of the sample.'}
+  'range': 'How the groups are arranged in the cells you picked.  Hover '
+           'a choice to see the shape it expects.',
+  'matched': 'Where each measurement sits in the cells you picked.  '
+             'Hover a choice to see the shape it expects.',
+  'factors': 'Which of the three columns holds the values.  Hover a '
+             'choice to see the shape it expects.',
+  'sample': 'Whether your sample is a column or a row.  Hover a choice '
+            'to see the shape it expects.'}
 
 # What each layout means, on hovering over its button, by the kind of input.
 # A layout an analysis does not take is not drawn at all, so the kinds that
 # take two carry two.
 LAYOUT_HELP = {
   'range': {
-    'columns': 'One group per column.  A first row of text is read as the '
-               'group names.',
-    'rows': 'One group per row.  A first column of text is read as the group '
-            'names.',
-    'labels-data': 'Two columns: the group of each value, then the values.  A '
-                   'first row of text is a header and is ignored.',
-    'data-labels': 'Two columns: the values, then the group of each.  A '
-                   'first row of text is a header and is ignored.'},
+    'columns': 'Each group fills a column of its own, one value per cell.  '
+               'A first row of text is read as the group names: the control '
+               'group in A2:A20 under its name in A1, the treated group in '
+               'B2:B20 under its name in B1.',
+    'rows': 'Each group fills a row of its own, one value per cell.  A '
+            'first column of text is read as the group names: the control '
+            'group in B1:T1 beside its name in A1, the treated group in '
+            'B2:T2 beside its name in A2.',
+    'labels-data': 'Two columns side by side, however many groups there '
+                   'are.  The first names the group each value belongs to, '
+                   'the second holds the value: control in A2 and 4.1 in '
+                   'B2, treated in A3 and 5.8 in B3.  A first row of text '
+                   'is read as a heading and ignored.',
+    'data-labels': 'The same two columns the other way round, the value '
+                   'first and the group it belongs to second: 4.1 in A2 and '
+                   'control in B2.  A first row of text is read as a '
+                   'heading and ignored.'},
   'matched': {
-    'columns': 'One measurement per column, a row per subject.  A first row '
-               'of text is read as the measurement names.',
-    'rows': 'One measurement per row, a column per subject.  A first column '
-            'of text is read as the measurement names.'},
+    'columns': 'Each measurement fills a column of its own and each subject '
+               'a row across them, in the same order in every column.  A '
+               'first row of text is read as the measurement names: before '
+               'in A2:A20 under its name in A1, after in B2:B20 under its '
+               'name in B1.  A subject missing any measurement is left out '
+               'of all of them.',
+    'rows': 'Each measurement fills a row of its own and each subject a '
+            'column down them, in the same order in every row.  A first '
+            'column of text is read as the measurement names: before in '
+            'B1:T1 beside its name in A1, after in B2:T2 beside its name '
+            'in A2.  A subject missing any measurement is left out of all '
+            'of them.'},
   'factors': {
-    'labels-data': 'Three columns: the two factors of each value, then the '
-                   'values.  A first row of text names the two factors.',
-    'data-labels': 'Three columns: the values, then the two factors of each.  '
-                   'A first row of text names the two factors.'},
+    'labels-data': 'Three columns: the two factors first, then the value '
+                   'measured under them.  Fertiliser in A2, variety in B2 '
+                   'and the yield in C2.  A first row of text is read as '
+                   'the names of the two factors.',
+    'data-labels': 'The same three columns the other way round, the value '
+                   'first and its two factors after it.  The yield in A2, '
+                   'fertiliser in B2 and variety in C2.  A first row of '
+                   'text is read as the names of the two factors.'},
   'sample': {
-    'columns': 'One column of values.  A first row of text is read as the '
-               'name of the sample.',
-    'rows': 'One row of values.  A first column of text is read as the name '
-            'of the sample.'}}
+    'columns': 'One column of values, such as A2:A20.  A first row of text '
+               'is read as the name of the sample, so a heading in A1 names '
+               'the results rather than being counted as a value.',
+    'rows': 'One row of values, such as B1:T1.  A first column of text is '
+            'read as the name of the sample, so a heading in A1 names the '
+            'results rather than being counted as a value.'}}
 
 # Where the results go.  An analysis whose size the results range may set
 # says so above the field, the two being unable to point at each other.
 RESULTS_LABEL = 'Results to:'
 
-RESULTS_HINT = 'The top left cell the results are written from.  They grow '\
-               'right and down from it.'
+RESULTS_HINT = 'The cell the results start from.  They fill right and down '\
+               'from it.'
 
-RESULTS_HELP = ('One cell, the top left of the results.  The results grow '
+
+def results_hint (command):
+  """What the results field says: where the results start, and how much
+  room they take where the analysis knows it."""
+  sized = octave_stats.ANALYSES[command].get ('results')
+  if (not sized):
+    return RESULTS_HINT
+  return ('The cell the results start from.  They grow right and down '
+          'from it, %s.' % sized)
+
+RESULTS_HELP = ('One cell, the top left corner of the results.  They fill '
                 'right and down from it, and you are asked before anything '
-                'is overwritten.')
+                'already in the way is overwritten.')
 
 RANGE_HINT = 'The cell range the results are written into, which is the size '\
              'of the draw.'
@@ -347,7 +380,8 @@ def plan (command, by_range = False):
               help = RANGE_HELP if by_range else RESULTS_HELP)
   column.block ('output_pick', PICK_LEFT, PICK_WIDTH, BUTTON, label = PICK,
                 help = 'Pick the results range with the mouse.')
-  column.hint ('output_hint', RANGE_HINT if by_range else RESULTS_HINT)
+  column.hint ('output_hint',
+               RANGE_HINT if by_range else results_hint (command))
   column.gap ()
   if (analysis.get ('sized')):
     size_plan (column, command, by_range)

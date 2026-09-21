@@ -73,7 +73,7 @@ CATEGORIES = {
   'Group comparisons':
     'Tests whether two or more groups differ, and which of them do.',
   'Distribution fitting':
-    'Fits a distribution to a sample, and tests whether it fits.',
+    'Fits a distribution to a sample, and tests how well it fits.',
   'Random numbers':
     'Draws a sample from a distribution and the parameters you give it.',
   'Experimental design':
@@ -151,8 +151,12 @@ SAMPLE_SIZE = {'name': 'n', 'kind': 'number', 'label': 'Sample size:',
 
 ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
                'label': 'Significance level:',
-               'hint': 'The chance of calling a difference real when '
-                       'there is none. 0.05 by default.',
+               'hint': 'How much risk of a false finding you accept.  '
+                       '0.05, the usual choice, accepts one in twenty.',
+               'help': 'The chance of calling a result real when there is '
+                       'none.  A smaller value makes the test harder to '
+                       'pass.  0.05 is the usual choice and accepts one in '
+                       'twenty.',
                'accepts': 'a number greater than 0 and less than 1',
                'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
 
@@ -411,10 +415,18 @@ FITTED = ('Beta', 'Binomial', 'BirnbaumSaunders', 'Burr', 'Exponential',
           'Stable', 'tLocationScale', 'Weibull')
 
 TAIL_MEANS_SAMPLE = {'name': 'tail', 'kind': 'choice',
-                     'label': 'Alternative:',
-                     'hint': 'What the test is prepared to find, the sample '
-                             'against the value you compare it with. A '
-                             'one-sided test looks that way only.',
+                     'label': 'Test for:',
+                     'hint': 'What the test looks for.  The one-sided '
+                             'choices report nothing in the other '
+                             'direction, however large it turns out to be.',
+                     'help': 'Looking both ways, for any difference at '
+                             'all, is the usual choice.  The other two '
+                             'look one way only: each is readier to find '
+                             'a difference in the direction you name, and '
+                             'reports none at all in the other, however '
+                             'large it turns out to be.  Choose one of '
+                             'them only where the other direction would '
+                             'not interest you whatever it showed.',
                      'choices': (('both', 'the means differ'),
                                  ('right', "the sample's mean is greater"),
                                  ('left', "the sample's mean is smaller")),
@@ -446,33 +458,47 @@ MATCHED = ('columns', 'rows')
 
 # The options the matched analyses share, in the order their functions take
 # them.  The first measurement is always the one the alternative is about.
-TAIL_MEANS = {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
-              'hint': 'What the test is prepared to find, the first '
-                      'measurement against the second. A one-sided test '
-                      'looks that way only.',
+TAIL_MEANS = {'name': 'tail', 'kind': 'choice', 'label': 'Test for:',
+              'hint': 'What the test looks for.  The one-sided choices '
+                      'report nothing in the other direction, however '
+                      'large it turns out to be.',
+              'help': 'Looking both ways, for any difference at all, is the '
+                      'usual choice.  The other two look one way only: each '
+                      'is readier to find a difference in the direction '
+                      'you name, and reports none at all in the other, '
+                      'however large it turns out to be.  Choose one of '
+                      'them only where the other direction would not '
+                      'interest you whatever it showed.',
               'choices': (('both', 'the means differ'),
                           ('right', 'the first mean is greater'),
                           ('left', 'the first mean is smaller')),
               'default': 'both'}
 
-TAIL_MEDIANS = {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
-                'hint': 'What the test is prepared to find, the first '
-                        'measurement against the second. A one-sided test '
-                        'looks that way only.',
+TAIL_MEDIANS = {'name': 'tail', 'kind': 'choice', 'label': 'Test for:',
+                'hint': 'What the test looks for.  The one-sided choices '
+                        'report nothing in the other direction, however '
+                        'large it turns out to be.',
+                'help': 'Looking both ways, for any difference at all, is the '
+                        'usual choice.  The other two look one way only: each '
+                        'is readier to find a difference in the direction '
+                        'you name, and reports none at all in the other, '
+                        'however large it turns out to be.  Choose one of '
+                        'them only where the other direction would not '
+                        'interest you whatever it showed.',
                 'choices': (('both', 'the medians differ'),
                             ('right', 'the first median is greater'),
                             ('left', 'the first median is smaller')),
                 'default': 'both'}
 
 METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
-                'hint': 'Exact enumeration weighs every rearrangement of the '
-                        'signs and is slow on a large sample; the '
-                        'approximation needs one large enough to be normal.',
-                'help': 'Exact enumeration weighs every rearrangement of the '
-                        'signs, which is exact at any size and slow on a '
-                        'large sample.  The normal approximation is quick '
-                        'and needs a sample large enough for it.  Left '
-                        'alone, the sample size chooses.',
+                'hint': 'How the p-value is worked out.  Left alone, the '
+                        'size of your sample chooses.',
+                'help': 'Exact weighs every rearrangement of the signs, '
+                        'which is right at any size and slow on a large '
+                        'sample.  Approximate is quick and needs a sample '
+                        'big enough for the approximation to hold.  Left '
+                        'alone, the sample size chooses between them, '
+                        'which is what most people want.',
                 'choices': (('auto', 'chosen by the sample size'),
                             ('exact', 'exact'),
                             ('approximate', 'approximate')),
@@ -497,11 +523,17 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #             results range, in place of the size the range itself gives
 #   seeded    where an analysis takes a seed, the option the dialog draws as
 #             the Seed field under the size; absent otherwise
+#   results   how much room the results take, as the dialog says it under
+#             the results field, so the corner can be chosen with room
+#             below and to the right of it; absent where the size is not
+#             known before the analysis runs
 #   heading   what the option rows are called, where 'Options:' is wrong for
 #             what they hold
 #   options   what the user chooses besides the ranges, passed to the function
 #             after the range, the layout and the names, in declared order.
-#             Each carries 'name', 'label', 'hint', 'default' and a 'kind':
+#             Each carries 'name', 'label', 'hint', 'default' and a 'kind',
+#             and 'help', what the hint says at length on hovering, which
+#             the hint itself stands in for where it is absent:
 #             'choice' holds 'choices', ((value, label), ...), and reaches the
 #             function as text, and may hold 'width', how wide the list is
 #             drawn in the dialog's units, the right column being 208 wide
@@ -516,6 +548,8 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 ANALYSES = {
   'KruskalWallis': {
     'category': 'Group comparisons',
+    'results': '8 columns wide, and 14 rows for two groups, 17 for '
+                 'three, 21 for four',
     'input': 'range',
     'title': 'Kruskal-Wallis Test',
     'function': 'octave_calc_kruskalwallis',
@@ -530,22 +564,37 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are held '
-               'down, several pairs tested at once throwing up differences '
-               'of their own. Holm is the safe default.',
+       'hint': 'Testing every pair at once turns up differences by '
+               'chance alone.  This is how the p-values are corrected '
+               'for that.',
+       'help': 'Compare six pairs at the usual significance level and '
+               'there is a fair chance one of them looks different when '
+               'nothing is.  Every choice but None guards against that, '
+               'and they differ in how strictly: Bonferroni is the most '
+               'cautious and the least likely to find anything, Holm is '
+               'nearly as safe and finds more, and the false discovery '
+               'rate is the most forgiving of the guarded choices.  None '
+               'corrects nothing and leaves you a set of separate '
+               'tests.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
                    ('lsd', 'None')),
        'default': 'holm'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the width of the confidence intervals, and the '
-               'chance of calling a difference real when there is none. '
-               '0.05 by default.',
+       'hint': 'How much risk of a false finding you accept, and how '
+               'wide the confidence intervals are drawn.  0.05 is the '
+               'usual choice.',
+       'help': 'The chance of calling a difference real when there is '
+               'none.  It sets the width of the confidence intervals too: '
+               '0.05 gives 95% intervals.  A smaller value makes the test '
+               'harder to pass and the intervals wider.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova1': {
     'category': 'Group comparisons',
+    'results': '8 columns wide, and 14 rows for two groups, 17 for '
+                 'three, 21 for four',
     'input': 'range',
     'title': 'One-way ANOVA',
     'function': 'octave_calc_anova1',
@@ -562,29 +611,48 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are held '
-               'down, several pairs tested at once throwing up differences '
-               'of their own. Holm is the safe default.',
+       'hint': 'Testing every pair at once turns up differences by '
+               'chance alone.  This is how the p-values are corrected '
+               'for that.',
+       'help': 'Compare six pairs at the usual significance level and '
+               'there is a fair chance one of them looks different when '
+               'nothing is.  Every choice but None guards against that, '
+               'and they differ in how strictly: Bonferroni is the most '
+               'cautious and the least likely to find anything, Holm is '
+               'nearly as safe and finds more, and the false discovery '
+               'rate is the most forgiving of the guarded choices.  None '
+               'corrects nothing and leaves you a set of separate '
+               'tests.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
                    ('lsd', 'None')),
        'default': 'holm'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the width of the confidence intervals, and the '
-               'chance of calling a difference real when there is none. '
-               '0.05 by default.',
+       'hint': 'How much risk of a false finding you accept, and how '
+               'wide the confidence intervals are drawn.  0.05 is the '
+               'usual choice.',
+       'help': 'The chance of calling a difference real when there is '
+               'none.  It sets the width of the confidence intervals too: '
+               '0.05 gives 95% intervals.  A smaller value makes the test '
+               'harder to pass and the intervals wider.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'},
       {'name': 'vartype', 'kind': 'choice', 'label': 'Variances:',
-       'hint': 'Welch does not assume the groups share a variance, and '
-               'is the safer of the two where they differ or the groups '
-               'are of unequal size.',
+       'hint': 'Whether the groups are taken to vary by the same '
+               'amount.  Choose non-equal if you are not sure.',
+       'help': 'Equal pools the spread of every group into one '
+               'estimate, which is a little more sensitive where they '
+               'really do vary alike.  Non-equal, the Welch test, '
+               'measures each group separately and stays reliable where '
+               'they do not, or where the groups differ in size.  Where '
+               'you are unsure, non-equal costs very little.',
        'choices': (('equal', 'equal (assumed)'),
                    ('unequal', 'non-equal (Welch)')),
        'default': 'equal'})},
   'Ttest2': {
     'category': 'Group comparisons',
+    'results': '8 columns wide and 9 rows tall',
     'input': 'range',
     'title': 'Two-sample t-test',
     'function': 'octave_calc_ttest2',
@@ -601,28 +669,44 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'vartype', 'kind': 'choice', 'label': 'Variances:',
-       'hint': 'Welch does not assume the groups share a variance, and '
-               'is the safer of the two where they differ or the groups '
-               'are of unequal size.',
+       'hint': 'Whether the two groups are taken to vary by the same '
+               'amount.  Choose non-equal if you are not sure.',
+       'help': 'Equal pools the spread of both groups into one estimate, '
+               'which is a little more sensitive where they really do '
+               'vary alike.  Non-equal, the Welch test, measures each '
+               'group separately and stays reliable where they do not, '
+               'or where one group is much larger than the other.  Where '
+               'you are unsure, non-equal costs very little.',
        'choices': (('equal', 'equal (assumed)'),
                    ('unequal', 'non-equal (Welch)')),
        'default': 'equal'},
-      {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
-       'hint': 'What the test is prepared to find, the first group '
-               'against the second. A one-sided test looks that way only, '
-               'and finds nothing the other way however large.',
+      {'name': 'tail', 'kind': 'choice', 'label': 'Test for:',
+       'hint': 'What the test looks for.  The one-sided choices report '
+               'nothing in the other direction, however large it turns '
+               'out to be.',
+       'help': 'Looking both ways, for any difference at all, is the '
+               'usual choice.  The other two look one way only: each is '
+               'readier to find a difference in the direction you name, '
+               'and reports none at all in the other, however large it '
+               'turns out to be.  Choose one of them only where the '
+               'other direction would not interest you whatever it '
+               'showed.',
        'choices': (('both', 'the means differ'),
                    ('right', 'the first mean is greater'),
                    ('left', 'the first mean is smaller')),
        'default': 'both'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the width of the confidence interval, and the '
-               'chance of calling a difference real when there is none. '
-               '0.05 by default.',
+       'hint': 'How much risk of a false finding you accept.  0.05, the '
+               'usual choice, accepts one in twenty.',
+       'help': 'The chance of calling a difference real when there is '
+               'none.  It sets the width of the confidence interval too: '
+               '0.05 gives a 95% interval.  A smaller value makes the '
+               'test harder to pass and the interval wider.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Ranksum': {
     'category': 'Group comparisons',
+    'results': '8 columns wide and 9 rows tall',
     'input': 'range',
     'title': 'Mann-Whitney U test',
     'function': 'octave_calc_ranksum',
@@ -639,31 +723,44 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
-       'hint': 'Exact enumeration weighs every way the two groups could be '
-               'ranked and is slow on large ones; the approximation needs '
-               'groups large enough to be normal.',
-       'help': 'Exact enumeration weighs every way the values of the two '
-               'groups could be ranked, which is exact at any size and slow '
-               'on large ones.  The normal approximation is quick and needs '
-               'groups large enough for it.  Left alone, the sizes choose.',
+       'hint': 'How the p-value is worked out.  Left alone, the sizes '
+               'of your two groups choose.',
+       'help': 'Exact weighs every way the values of the two groups could '
+               'be ranked, which is right at any size and slow on large '
+               'ones.  Approximate is quick and needs groups big enough '
+               'for the approximation to hold.  Left alone, the group '
+               'sizes choose between them, which is what most people '
+               'want.',
        'choices': (('auto', 'chosen by the sample sizes'),
                    ('exact', 'exact'), ('approximate', 'approximate')),
        'default': 'auto'},
-      {'name': 'tail', 'kind': 'choice', 'label': 'Alternative:',
-       'hint': 'What the test is prepared to find, the first group '
-               'against the second. A one-sided test looks that way only, '
-               'and finds nothing the other way however large.',
+      {'name': 'tail', 'kind': 'choice', 'label': 'Test for:',
+       'hint': 'What the test looks for.  The one-sided choices '
+               'report nothing in the other direction, however '
+               'large it turns out to be.',
+       'help': 'Looking both ways, for any difference at all, is the '
+               'usual choice.  The other two look one way only: each '
+               'is readier to find a difference in the direction '
+               'you name, and reports none at all in the other, '
+               'however large it turns out to be.  Choose one of '
+               'them only where the other direction would not '
+               'interest you whatever it showed.',
        'choices': (('both', 'the medians differ'),
                    ('right', 'the first median is greater'),
                    ('left', 'the first median is smaller')),
        'default': 'both'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'The chance of calling a difference real when there is '
-               'none. 0.05 by default.',
+       'hint': 'How much risk of a false finding you accept.  0.05, '
+               'the usual choice, accepts one in twenty.',
+       'help': 'The chance of calling a result real when there is none.  '
+               'A smaller value makes the test harder to pass.  0.05 is '
+               'the usual choice and accepts one in twenty.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'VarTestN': {
     'category': 'Group comparisons',
+    'results': '8 columns wide, and 11 rows for three groups, one more '
+                 'for each group after that; two groups take 14',
     'input': 'range',
     'title': 'Equal variances',
     'function': 'octave_calc_vartestn',
@@ -682,9 +779,15 @@ ANALYSES = {
     'layouts': BY,
     'options': (
       {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
-       'hint': "Bartlett is the most powerful where every group is "
-               "normal and the most easily misled where one is not; the "
-               "rest weigh each value against its group's centre.",
+       'hint': 'Which test of spread to run.  Bartlett needs every '
+               'group to be normal; the others do not.',
+       'help': "Bartlett is the most sensitive where every group really "
+               "is normal, and the most easily misled where one is not.  "
+               "The others measure how far each value sits from the "
+               "centre of its group and compare those distances instead, "
+               "which troubles them far less when a group is skewed or "
+               "holds a stray value.  Brown-Forsythe is a safe general "
+               "choice.",
        'choices': (('Bartlett', 'Bartlett'),
                    ('LeveneQuadratic', 'Levene, squared deviations'),
                    ('LeveneAbsolute', 'Levene, absolute deviations'),
@@ -692,12 +795,18 @@ ANALYSES = {
                    ('OBrien', "O'Brien")),
        'width': 115, 'default': 'Bartlett'},
       {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
-       'hint': 'Sets the width of the confidence interval of the ratio '
-               'of the two variances. 0.05 by default.',
+       'hint': 'How much risk of a false finding you accept.  0.05, '
+               'the usual choice, accepts one in twenty.',
+       'help': 'The chance of calling a difference in spread real when '
+               'there is none.  With two groups it also sets the width of '
+               'the confidence interval for the ratio of their variances: '
+               '0.05 gives a 95% interval.',
        'accepts': 'a number greater than 0 and less than 1',
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova2': {
     'category': 'Group comparisons',
+    'results': '8 columns wide, and 22 rows for two levels of each '
+                 'factor, more as the levels grow',
     'input': 'factors',
     'title': 'Two-way ANOVA',
     'function': 'octave_calc_anova2',
@@ -715,16 +824,32 @@ ANALYSES = {
     'layouts': FACTORS,
     'options': (
       {'name': 'model', 'kind': 'choice', 'label': 'Model:',
-       'hint': 'Whether the effect of one factor may depend on the level '
-               'of the other, which needs a combination measured more than '
-               'once.',
+       'hint': 'Whether to ask if the two factors work on each '
+               'other, which needs every combination measured more '
+               'than once.',
+       'help': 'With the interaction, the test also asks whether the '
+               'effect of one factor changes with the level of the '
+               'other: a fertiliser that helps one variety and not '
+               'another.  That question can be answered only where '
+               'every combination of levels was measured more than '
+               'once.  Without it, the two effects are taken to add, '
+               'and one measurement per combination is enough.',
        'choices': (('interaction', 'the two effects and their interaction'),
                    ('linear', 'the two effects, taken to add')),
        'width': 125, 'default': 'interaction'},
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are held '
-               'down, several pairs tested at once throwing up differences '
-               'of their own. Holm is the safe default.',
+       'hint': 'Testing every pair at once turns up differences by '
+               'chance alone.  This is how the p-values are corrected '
+               'for that.',
+       'help': 'Compare six pairs at the usual significance level and '
+               'there is a fair chance one of them looks different when '
+               'nothing is.  Every choice but None guards against that, '
+               'and they differ in how strictly: Bonferroni is the most '
+               'cautious and the least likely to find anything, Holm is '
+               'nearly as safe and finds more, and the false discovery '
+               'rate is the most forgiving of the guarded choices.  None '
+               'corrects nothing and leaves you a set of separate '
+               'tests.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
@@ -733,6 +858,7 @@ ANALYSES = {
       ALPHA_LEVEL)},
   'TtestPaired': {
     'category': 'Group comparisons',
+    'results': '8 columns wide and 10 rows tall',
     'input': 'matched',
     'title': 'Paired t-test',
     'function': 'octave_calc_ttestpaired',
@@ -751,6 +877,7 @@ ANALYSES = {
     'options': (TAIL_MEANS, ALPHA_LEVEL)},
   'SignRank': {
     'category': 'Group comparisons',
+    'results': '8 columns wide and 10 rows tall',
     'input': 'matched',
     'title': 'Wilcoxon signed-rank test',
     'function': 'octave_calc_signrank',
@@ -768,6 +895,7 @@ ANALYSES = {
     'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
   'SignTest': {
     'category': 'Group comparisons',
+    'results': '8 columns wide and 10 rows tall',
     'input': 'matched',
     'title': 'Sign test',
     'function': 'octave_calc_signtest',
@@ -784,6 +912,8 @@ ANALYSES = {
     'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
   'Friedman': {
     'category': 'Group comparisons',
+    'results': '8 columns wide, and 14 rows for two measurements, 17 '
+                 'for three, 21 for four',
     'input': 'matched',
     'title': 'Friedman test',
     'function': 'octave_calc_friedman',
@@ -799,9 +929,18 @@ ANALYSES = {
     'layouts': MATCHED,
     'options': (
       {'name': 'ctype', 'kind': 'choice', 'label': 'Comparisons:',
-       'hint': 'How the p-values of the pairwise comparisons are held '
-               'down, several pairs tested at once throwing up differences '
-               'of their own. Holm is the safe default.',
+       'hint': 'Testing every pair at once turns up differences by '
+               'chance alone.  This is how the p-values are corrected '
+               'for that.',
+       'help': 'Compare six pairs at the usual significance level and '
+               'there is a fair chance one of them looks different when '
+               'nothing is.  Every choice but None guards against that, '
+               'and they differ in how strictly: Bonferroni is the most '
+               'cautious and the least likely to find anything, Holm is '
+               'nearly as safe and finds more, and the false discovery '
+               'rate is the most forgiving of the guarded choices.  None '
+               'corrects nothing and leaves you a set of separate '
+               'tests.',
        'choices': (('holm', 'Holm'), ('bonferroni', 'Bonferroni'),
                    ('scheffe', 'Scheffe'), ('mvt', 'Multivariate t'),
                    ('hochberg', 'Hochberg'), ('fdr', 'False discovery rate'),
@@ -912,6 +1051,7 @@ ANALYSES = {
        'maximum': float ('inf'), 'default': '0'})},
   'Ttest1': {
     'category': 'Group comparisons',
+    'results': '8 columns wide and 8 rows tall',
     'input': 'sample',
     'title': 'One-sample t-test',
     'function': 'octave_calc_ttest1',
@@ -928,8 +1068,11 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (
       {'name': 'nullmean', 'kind': 'number', 'label': 'Compare with:',
-       'hint': 'The mean the sample is tested against: a target, a '
-               'specification, a published figure, or 0. 0 by default.',
+       'hint': 'The value the sample mean is tested against: a target, '
+               'a specification, a published figure, or 0.',
+       'help': 'The test asks whether the mean of your sample differs '
+               'from this value.  Use 0 where the sample already holds '
+               'differences you worked out yourself.',
        'accepts': 'a number', 'minimum': float ('-inf'),
        'maximum': float ('inf'), 'default': '0'},
       TAIL_MEANS_SAMPLE, ALPHA_LEVEL)},
