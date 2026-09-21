@@ -51,18 +51,44 @@ NOUN = {'range': 'group', 'matched': 'measurement',
         'factors': 'factor', 'sample': 'sample'}
 
 
+# What the input range may hold, one whole sentence for each kind of input
+# and each way of reading it.  The noun differs with the kind and is not
+# dropped into a shared frame: a noun carries an article and a case in most
+# languages, and the sentence must be free to arrange itself around it.
+ALLOWED = {
+  ('range', 'columns'): 'the input range may hold group names in its first '
+                        'row, then numbers and empty cells only.',
+  ('range', 'rows'): 'the input range may hold group names in its first '
+                     'column, then numbers and empty cells only.',
+  ('range', 'labels'): 'the values may be numbers or empty cells, and the '
+                       'group labels text or numbers.',
+  ('matched', 'columns'): 'the input range may hold measurement names in '
+                          'its first row, then numbers and empty cells '
+                          'only.',
+  ('matched', 'rows'): 'the input range may hold measurement names in its '
+                       'first column, then numbers and empty cells only.',
+  ('matched', 'labels'): 'the values may be numbers or empty cells, and '
+                         'the measurement labels text or numbers.',
+  ('factors', 'columns'): 'the input range may hold factor names in its '
+                          'first row, then numbers and empty cells only.',
+  ('factors', 'rows'): 'the input range may hold factor names in its first '
+                       'column, then numbers and empty cells only.',
+  ('factors', 'labels'): 'the values may be numbers or empty cells, and '
+                         'the factor labels text or numbers.',
+  ('sample', 'columns'): 'the input range may hold the sample name in its '
+                         'first row, then numbers and empty cells only.',
+  ('sample', 'rows'): 'the input range may hold the sample name in its '
+                      'first column, then numbers and empty cells only.',
+  ('sample', 'labels'): 'the values may be numbers or empty cells, and the '
+                        'sample labels text or numbers.'}
+
+
 def allowed (by, kind = 'range'):
   """What the input range may hold, read BY that layout for an analysis of
   that KIND, ending a refusal."""
-  noun = NOUN.get (kind, NOUN['range'])
-  if (by == 'columns'):
-    return ('the input range may hold %s names in its first row, then '
-            'numbers and empty cells only.' % noun)
-  if (by == 'rows'):
-    return ('the input range may hold %s names in its first column, then '
-            'numbers and empty cells only.' % noun)
-  return ('the values may be numbers or empty cells, and the %s labels text '
-          'or numbers.' % noun)
+  if (kind not in NOUN):
+    kind = 'range'
+  return ALLOWED[(kind, by if by in ('columns', 'rows') else 'labels')]
 
 # The categories, in the order the dialog lists them, each with the sentence
 # shown under the category.  A category joins this list with the analyses
@@ -117,6 +143,34 @@ def list_label (category):
 # The options the three power analyses share, in the order their functions
 # take them.  The null standard deviation is taken by the z and t tests and
 # ignored by the rest, since the dialog cannot leave a number blank.
+# A refusal is one whole sentence, never a frame with a fragment dropped
+# into it: "the %(what)s must be" joined to "a number greater than 0" cannot
+# be translated into a language that inflects the noun, and a translator
+# handed the halves separately cannot see what they make.  %(what)s is the
+# field's own name, which every message system can carry.
+TAKES_ANY = 'the %(what)s must be a number.'
+TAKES_POSITIVE = 'the %(what)s must be a number greater than 0.'
+TAKES_FROM_ZERO = 'the %(what)s must be a number of 0 or more.'
+TAKES_FROM_HALF = 'the %(what)s must be a number of 0.5 or more.'
+TAKES_UNIT = ('the %(what)s must be a number greater than 0 and no more '
+              'than 1.')
+TAKES_OPEN_UNIT = ('the %(what)s must be a number greater than 0 and less '
+                   'than 1.')
+TAKES_PROBABILITY = 'the %(what)s must be a number from 0 to 1.'
+TAKES_TO_TWO = ('the %(what)s must be a number greater than 0 and no more '
+                'than 2.')
+TAKES_SKEW = 'the %(what)s must be a number from -1 to 1.'
+TAKES_WHOLE = 'the %(what)s must be a whole number greater than 0.'
+TAKES_WHOLE_FROM_ZERO = 'the %(what)s must be a whole number of 0 or more.'
+TAKES_WHOLE_FROM_ONE = 'the %(what)s must be a whole number of 1 or more.'
+TAKES_WHOLE_FROM_TWO = 'the %(what)s must be a whole number of 2 or more.'
+TAKES_FACTOR_COUNT = ('the %(what)s must be a whole number from 1 to 15.')
+TAKES_LEVELS = ('the %(what)s must be one whole number per factor, each 2 '
+                'or more.')
+TAKES_SEED = ('the %(what)s must be a whole number of 0 or more, or '
+              'nothing at all.')
+
+
 POWER_TEST = {'name': 'testtype', 'kind': 'choice', 'label': 'Test:',
               'hint': 'Which test the study will use.  The answer is '
                       'the one that test needs, and holds for no other.',
@@ -141,7 +195,7 @@ NULL_VALUE = {'name': 'nullvalue', 'kind': 'number', 'label': 'Null value:',
                       'variance for the chi-square test, a proportion '
                       'for the test of a proportion and a correlation '
                       'for the test of a correlation.',
-              'accepts': 'a number', 'minimum': float ('-inf'),
+              'refusal': TAKES_ANY, 'minimum': float ('-inf'),
               'maximum': float ('inf'), 'default': '5'}
 
 NULL_SD = {'name': 'nullsd', 'kind': 'number',
@@ -155,7 +209,7 @@ NULL_SD = {'name': 'nullsd', 'kind': 'number',
                    'and z tests take it: the tests of a variance, a '
                    'proportion and a correlation get their scatter from '
                    'the null value itself.',
-           'accepts': 'a number greater than 0', 'minimum': 0.0,
+           'refusal': TAKES_POSITIVE, 'minimum': 0.0,
            'maximum': float ('inf'), 'default': '2'}
 
 SAMPLE_SIZE = {'name': 'n', 'kind': 'number', 'label': 'Sample size:',
@@ -164,7 +218,7 @@ SAMPLE_SIZE = {'name': 'n', 'kind': 'number', 'label': 'Sample size:',
                'help': 'For a two-sample t-test this is the size of each '
                        'group, so 30 here means 60 observations in all.  '
                        'Every other test counts the study as a whole.',
-               'accepts': 'a whole number of 2 or more', 'minimum': 1.0,
+               'refusal': TAKES_WHOLE_FROM_TWO, 'minimum': 1.0,
                'maximum': float ('inf'), 'whole': True, 'default': '30'}
 
 ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
@@ -175,7 +229,7 @@ ALPHA_LEVEL = {'name': 'alpha', 'kind': 'number',
                        'none.  A smaller value makes the test harder to '
                        'pass.  0.05 is the usual choice and accepts one in '
                        'twenty.',
-               'accepts': 'a number greater than 0 and less than 1',
+               'refusal': TAKES_OPEN_UNIT,
                'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
 
 INF = float ('inf')
@@ -545,10 +599,11 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #             results range, in place of the size the range itself gives
 #   seeded    where an analysis takes a seed, the option the dialog draws as
 #             the Seed field under the size; absent otherwise
-#   results   how much room the results take, as the dialog says it under
-#             the results field, so the corner can be chosen with room
-#             below and to the right of it; absent where the size is not
-#             known before the analysis runs
+#   results   what the results field says, whole: where the results start
+#             and how much room they take, so the corner can be chosen with
+#             room below and to the right of it.  Absent where the size is
+#             not known before the analysis runs, and the field says only
+#             where they start
 #   heading   what the option rows are called, where 'Options:' is wrong for
 #             what they hold
 #   options   what the user chooses besides the ranges, passed to the function
@@ -560,7 +615,8 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 #             function as text, and may hold 'width', how wide the list is
 #             drawn in the dialog's units, the right column being 208 wide
 #             and a list 104 unless it says otherwise; 'number' holds 'minimum', 'maximum' and
-#             'accepts', the refusal's words, and reaches it as a number,
+#             'refusal', one whole sentence naming the field as
+#             %(what)s, and reaches it as a number,
 #             whole when it holds 'whole', and the bound itself allowed where
 #             it holds 'atleast' or 'atmost'; 'numbers' holds the same and
 #             reaches the function as a range of one row; 'radios' holds two
@@ -570,8 +626,8 @@ METHOD_EXACT = {'name': 'method', 'kind': 'choice', 'label': 'p-value:',
 ANALYSES = {
   'KruskalWallis': {
     'category': 'Group comparisons',
-    'results': '8 columns, and 14 rows for two groups, 17 for three, 21 '
-                 'for four',
+    'results': 'The top left cell.  The results fill 8 columns, and 14 '
+                 'rows for two groups, 17 for three, 21 for four.',
     'input': 'range',
     'title': 'Kruskal-Wallis Test',
     'function': 'octave_calc_kruskalwallis',
@@ -611,12 +667,12 @@ ANALYSES = {
                'none.  It sets the width of the confidence intervals too: '
                '0.05 gives 95% intervals.  A smaller value makes the test '
                'harder to pass and the intervals wider.',
-       'accepts': 'a number greater than 0 and less than 1',
+       'refusal': TAKES_OPEN_UNIT,
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova1': {
     'category': 'Group comparisons',
-    'results': '8 columns, and 14 rows for two groups, 17 for three, 21 '
-                 'for four',
+    'results': 'The top left cell.  The results fill 8 columns, and 14 '
+                 'rows for two groups, 17 for three, 21 for four.',
     'input': 'range',
     'title': 'One-way ANOVA',
     'function': 'octave_calc_anova1',
@@ -658,7 +714,7 @@ ANALYSES = {
                'none.  It sets the width of the confidence intervals too: '
                '0.05 gives 95% intervals.  A smaller value makes the test '
                'harder to pass and the intervals wider.',
-       'accepts': 'a number greater than 0 and less than 1',
+       'refusal': TAKES_OPEN_UNIT,
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'},
       {'name': 'vartype', 'kind': 'choice', 'label': 'Variances:',
        'hint': 'Whether the groups are taken to vary by the same '
@@ -674,7 +730,8 @@ ANALYSES = {
        'default': 'equal'})},
   'Ttest2': {
     'category': 'Group comparisons',
-    'results': '8 columns and 9 rows',
+    'results': 'The top left cell.  The results fill 8 columns and 9 '
+                 'rows.',
     'input': 'range',
     'title': 'Two-sample t-test',
     'function': 'octave_calc_ttest2',
@@ -724,11 +781,12 @@ ANALYSES = {
                'none.  It sets the width of the confidence interval too: '
                '0.05 gives a 95% interval.  A smaller value makes the '
                'test harder to pass and the interval wider.',
-       'accepts': 'a number greater than 0 and less than 1',
+       'refusal': TAKES_OPEN_UNIT,
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Ranksum': {
     'category': 'Group comparisons',
-    'results': '8 columns and 9 rows',
+    'results': 'The top left cell.  The results fill 8 columns and 9 '
+                 'rows.',
     'input': 'range',
     'title': 'Mann-Whitney U test',
     'function': 'octave_calc_ranksum',
@@ -777,12 +835,13 @@ ANALYSES = {
        'help': 'The chance of calling a result real when there is none.  '
                'A smaller value makes the test harder to pass.  0.05 is '
                'the usual choice and accepts one in twenty.',
-       'accepts': 'a number greater than 0 and less than 1',
+       'refusal': TAKES_OPEN_UNIT,
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'VarTestN': {
     'category': 'Group comparisons',
-    'results': '8 columns, and 11 rows for three groups, one more for '
-                 'each group after that; two groups take 14',
+    'results': 'The top left cell.  The results fill 8 columns, and 11 '
+                 'rows for three groups, one more for each group after '
+                 'that; two groups take 14.',
     'input': 'range',
     'title': 'Equal variances',
     'function': 'octave_calc_vartestn',
@@ -823,12 +882,13 @@ ANALYSES = {
                'there is none.  With two groups it also sets the width of '
                'the confidence interval for the ratio of their variances: '
                '0.05 gives a 95% interval.',
-       'accepts': 'a number greater than 0 and less than 1',
+       'refusal': TAKES_OPEN_UNIT,
        'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'})},
   'Anova2': {
     'category': 'Group comparisons',
-    'results': '8 columns, and 22 rows for two levels of each factor, '
-                 'more as the levels grow',
+    'results': 'The top left cell.  The results fill 8 columns, and 22 '
+                 'rows for two levels of each factor, more as the levels '
+                 'grow.',
     'input': 'factors',
     'title': 'Two-way ANOVA',
     'function': 'octave_calc_anova2',
@@ -880,7 +940,8 @@ ANALYSES = {
       ALPHA_LEVEL)},
   'TtestPaired': {
     'category': 'Group comparisons',
-    'results': '8 columns and 10 rows',
+    'results': 'The top left cell.  The results fill 8 columns and 10 '
+                 'rows.',
     'input': 'matched',
     'title': 'Paired t-test',
     'function': 'octave_calc_ttestpaired',
@@ -899,7 +960,8 @@ ANALYSES = {
     'options': (TAIL_MEANS, ALPHA_LEVEL)},
   'SignRank': {
     'category': 'Group comparisons',
-    'results': '8 columns and 10 rows',
+    'results': 'The top left cell.  The results fill 8 columns and 10 '
+                 'rows.',
     'input': 'matched',
     'title': 'Wilcoxon signed-rank test',
     'function': 'octave_calc_signrank',
@@ -917,7 +979,8 @@ ANALYSES = {
     'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
   'SignTest': {
     'category': 'Group comparisons',
-    'results': '8 columns and 10 rows',
+    'results': 'The top left cell.  The results fill 8 columns and 10 '
+                 'rows.',
     'input': 'matched',
     'title': 'Sign test',
     'function': 'octave_calc_signtest',
@@ -934,8 +997,8 @@ ANALYSES = {
     'options': (METHOD_EXACT, TAIL_MEDIANS, ALPHA_LEVEL)},
   'Friedman': {
     'category': 'Group comparisons',
-    'results': '8 columns, and 14 rows for two measurements, 17 for '
-                 'three, 21 for four',
+    'results': 'The top left cell.  The results fill 8 columns, and 14 '
+                 'rows for two measurements, 17 for three, 21 for four.',
     'input': 'matched',
     'title': 'Friedman test',
     'function': 'octave_calc_friedman',
@@ -970,7 +1033,8 @@ ANALYSES = {
        'default': 'holm'},
       ALPHA_LEVEL)},
   'Normality': {
-    'results': '8 columns and 13 rows, fewer where a test could not run',
+    'results': 'The top left cell.  The results fill 8 columns and 13 '
+                 'rows, fewer where a test could not run.',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Tests of normality',
@@ -988,9 +1052,9 @@ ANALYSES = {
     'layouts': SAMPLE,
     'options': (ALPHA_LEVEL,)},
   'Chi2gof': {
-    'results': '8 columns, and a row for each bin counted with about a '
-                 'dozen above them; the ten it takes by default give 21 '
-                 'rows',
+    'results': 'The top left cell.  The results fill 8 columns, and a row '
+                 'for each bin counted with about a dozen above them; the '
+                 'ten it takes by default give 21 rows.',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Goodness of fit',
@@ -1017,12 +1081,13 @@ ANALYSES = {
                          'be counted than you ask for, and asking for '
                          'many on a small sample can leave the test '
                          'nothing to work with.',
-                 'accepts': 'a whole number of 2 or more',
+                 'refusal': TAKES_WHOLE_FROM_TWO,
                  'minimum': 1.0, 'maximum': float ('inf'), 'whole': True,
                  'default': '10'},
                 ALPHA_LEVEL)},
   'Fitdist': {
-    'results': '8 columns, and 14 rows plus one per curve point',
+    'results': 'The top left cell.  The results fill 8 columns, and 14 '
+                 'rows plus one per curve point.',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Distribution fitting',
@@ -1066,7 +1131,8 @@ ANALYSES = {
                  'default': ''},
                 ALPHA_LEVEL)},
   'Isoutlier': {
-    'results': '8 columns and 7 rows',
+    'results': 'The top left cell.  The results fill 8 columns and 7 '
+                 'rows.',
     'category': 'Distribution fitting',
     'input': 'sample',
     'title': 'Outliers',
@@ -1108,11 +1174,12 @@ ANALYSES = {
                'standard deviations, or interquartile ranges.  A larger '
                'factor calls fewer values outliers.  0 leaves the method '
                'the threshold it uses by default.',
-       'accepts': 'a number of 0 or more', 'minimum': -1.0,
+       'refusal': TAKES_FROM_ZERO, 'minimum': -1.0,
        'maximum': float ('inf'), 'default': '0'})},
   'Ttest1': {
     'category': 'Group comparisons',
-    'results': '8 columns and 8 rows',
+    'results': 'The top left cell.  The results fill 8 columns and 8 '
+                 'rows.',
     'input': 'sample',
     'title': 'One-sample t-test',
     'function': 'octave_calc_ttest1',
@@ -1134,12 +1201,13 @@ ANALYSES = {
        'help': 'The test asks whether the mean of your sample differs '
                'from this value.  Use 0 where the sample already holds '
                'differences you worked out yourself.',
-       'accepts': 'a number', 'minimum': float ('-inf'),
+       'refusal': TAKES_ANY, 'minimum': float ('-inf'),
        'maximum': float ('inf'), 'default': '0'},
       TAIL_MEANS_SAMPLE, ALPHA_LEVEL)},
   'FullFactorial': {
-    'results': 'a column for the run number and one per factor, with four '
-                 'rows above the runs: 2 3 3 gives 22 rows by 4 columns',
+    'results': 'The top left cell.  The results fill a column for the run '
+                 'number and one per factor, with four rows above the runs: '
+                 '2 3 3 gives 22 rows by 4 columns.',
     'category': 'Experimental design',
     'title': 'Full factorial design',
     'function': 'octave_calc_fullfact',
@@ -1160,12 +1228,12 @@ ANALYSES = {
                'the design lists every combination of them: 2 3 3 gives '
                '18 runs, one to a row, with a column for the run number '
                'and one for each factor.',
-       'accepts': 'one whole number per factor, each 2 or more',
+       'refusal': TAKES_LEVELS,
        'minimum': 1.0, 'maximum': 1000.0, 'whole': True, 'default': '2 3 3'},)},
   'TwoLevelFactorial': {
-    'results': 'a column for the run number and one per factor, with four '
-                 'rows above the runs: five factors give 36 rows by 6 '
-                 'columns',
+    'results': 'The top left cell.  The results fill a column for the run '
+                 'number and one per factor, with four rows above the runs: '
+                 'five factors give 36 rows by 6 columns.',
     'category': 'Experimental design',
     'title': 'Two-level factorial design',
     'function': 'octave_calc_ff2n',
@@ -1185,10 +1253,11 @@ ANALYSES = {
                'give 8 runs, five give 32 and ten give 1024, one to a '
                'row, with a column for the run number and one for each '
                'factor.',
-       'accepts': 'a whole number from 1 to 15',
+       'refusal': TAKES_FACTOR_COUNT,
        'minimum': 0.0, 'maximum': 16.0, 'whole': True, 'default': '3'},)},
   'SampleSize': {
-    'results': '2 columns and 10 rows',
+    'results': 'The top left cell.  The results fill 2 columns and 10 '
+                 'rows.',
     'category': 'Experimental design',
     'title': 'Sample size',
     'function': 'octave_calc_sampsize',
@@ -1208,7 +1277,7 @@ ANALYSES = {
                          'further it lies from the null value, the fewer '
                          'observations it takes to see it, which makes '
                          'this the strongest lever on the answer.',
-                 'accepts': 'a number', 'minimum': float ('-inf'),
+                 'refusal': TAKES_ANY, 'minimum': float ('-inf'),
                  'maximum': float ('inf'), 'default': '6'},
                 {'name': 'power', 'kind': 'number', 'label': 'Power:',
                  'hint': 'The chance of detecting that difference if '
@@ -1217,11 +1286,12 @@ ANALYSES = {
                          'difference real when it truly is.  0.9 accepts '
                          'one chance in ten of missing it.  It must be '
                          'greater than the significance level.',
-                 'accepts': 'a number greater than 0 and less than 1',
+                 'refusal': TAKES_OPEN_UNIT,
                  'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
                 ALPHA_LEVEL)},
   'TestPower': {
-    'results': '2 columns and 10 rows',
+    'results': 'The top left cell.  The results fill 2 columns and 10 '
+                 'rows.',
     'category': 'Experimental design',
     'title': 'Power',
     'function': 'octave_calc_testpower',
@@ -1240,11 +1310,12 @@ ANALYSES = {
                          'further it lies from the null value, the fewer '
                          'observations it takes to see it, which makes '
                          'this the strongest lever on the answer.',
-                 'accepts': 'a number', 'minimum': float ('-inf'),
+                 'refusal': TAKES_ANY, 'minimum': float ('-inf'),
                  'maximum': float ('inf'), 'default': '6'},
                 SAMPLE_SIZE, ALPHA_LEVEL)},
   'Detectable': {
-    'results': '2 columns and 10 rows',
+    'results': 'The top left cell.  The results fill 2 columns and 10 '
+                 'rows.',
     'category': 'Experimental design',
     'title': 'Detectable difference',
     'function': 'octave_calc_detectable',
@@ -1262,26 +1333,51 @@ ANALYSES = {
                          'difference real when it truly is.  0.9 accepts '
                          'one chance in ten of missing it.  It must be '
                          'greater than the significance level.',
-                 'accepts': 'a number greater than 0 and less than 1',
+                 'refusal': TAKES_OPEN_UNIT,
                  'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
                 SAMPLE_SIZE, ALPHA_LEVEL)}}
 
 
-def accepts_text (bounds):
-  """What a parameter of those BOUNDS accepts, as a refusal ends."""
-  low, high = bounds['minimum'], bounds['maximum']
-  noun = 'a whole number' if bounds.get ('whole') else 'a number'
-  if (bounds.get ('atleast') and bounds.get ('atmost')):
-    return '%s from %g to %g' % (noun, low, high)
-  under = ('' if high == INF else
-           'no more than %g' % high if bounds.get ('atmost')
-           else 'less than %g' % high)
-  over = ('' if low == -INF else
-          '%g or more' % low if bounds.get ('atleast')
-          else 'greater than %g' % low)
-  if (over and under):
-    return '%s %s and %s' % (noun, over, under)
-  return '%s %s' % (noun, over or under) if (over or under) else noun
+
+# A distribution parameter's bounds against the refusal they call for and
+# the sentence its tooltip ends with.  Both are written out whole: the
+# eight shapes below are every one the generators use, and a shape that is
+# not here is a parameter whose words nobody has written.
+BOUNDED = {
+  (False, False, False, -INF, INF): (TAKES_ANY, 'Takes a number.'),
+  (False, False, False, 0.0, INF): (TAKES_POSITIVE,
+                                    'Takes a number greater than 0.'),
+  (False, False, True, 0.0, 1.0): (TAKES_UNIT,
+                                   'Takes a number greater than 0 and no '
+                                   'more than 1.'),
+  (False, False, True, 0.0, 2.0): (TAKES_TO_TWO,
+                                   'Takes a number greater than 0 and no '
+                                   'more than 2.'),
+  (False, True, False, 0.0, INF): (TAKES_FROM_ZERO,
+                                   'Takes a number of 0 or more.'),
+  (False, True, False, 0.5, INF): (TAKES_FROM_HALF,
+                                   'Takes a number of 0.5 or more.'),
+  (False, True, True, -1.0, 1.0): (TAKES_SKEW,
+                                   'Takes a number from -1 to 1.'),
+  (False, True, True, 0.0, 1.0): (TAKES_PROBABILITY,
+                                  'Takes a number from 0 to 1.'),
+  (True, False, False, 0.0, INF): (TAKES_WHOLE,
+                                   'Takes a whole number greater than 0.')}
+
+
+def shape (bounds):
+  """The key BOUNDED holds a parameter of those BOUNDS under: what it
+  allows and where, since two parameters may be bounded the same way at
+  different numbers."""
+  return (bool (bounds.get ('whole')), bool (bounds.get ('atleast')),
+          bool (bounds.get ('atmost')), bounds['minimum'],
+          bounds['maximum'])
+
+
+def bounded (bounds):
+  """The refusal and the tooltip ending a parameter of those BOUNDS takes.
+  Raises KeyError on bounds nobody has written the words for."""
+  return BOUNDED[shape (bounds)]
 
 
 # The size of the draw and the seed, which every generator takes and the
@@ -1294,7 +1390,7 @@ DRAW_ROWS = {'name': 'nrows', 'kind': 'number', 'label': 'Rows:',
              'help': 'Rows of numbers in the draw.  Selecting a results '
                      'range of more than one cell sets the size instead, '
                      'and these two fields give way to it.',
-             'accepts': 'a whole number of 1 or more', 'minimum': 0.0,
+             'refusal': TAKES_WHOLE_FROM_ONE, 'minimum': 0.0,
              'maximum': INF, 'whole': True, 'default': '10'}
 
 DRAW_COLS = dict (DRAW_ROWS, name = 'ncols', label = 'Columns:',
@@ -1313,7 +1409,7 @@ DRAW_SEED = {'name': 'seed', 'kind': 'numbers', 'label': 'Seed:',
                      'generator with a state of its own is seeded, not '
                      'the usual two alone, so a Poisson or a gamma draw '
                      'repeats as well.',
-             'accepts': 'a whole number of 0 or more, or nothing at all',
+             'refusal': TAKES_SEED,
              'minimum': -1.0, 'maximum': INF, 'whole': True,
              'optional': True, 'default': ''}
 
@@ -1331,8 +1427,8 @@ for _name, _detail, _parameters in GENERATORS:
     'layouts': (),
     'sized': ('nrows', 'ncols'),
     'seeded': 'seed',
-    'results': 'the numbers alone, at the size the Rows and Columns '
-               'below give',
+    'results': 'The top left cell.  The numbers fill it at the size the '
+                 'Rows and Columns below give, and nothing else is written.',
     'heading': 'Distribution parameters:',
     'options': (
       {'name': 'distname', 'kind': 'fixed', 'label': 'Distribution:',
@@ -1340,10 +1436,11 @@ for _name, _detail, _parameters in GENERATORS:
       DRAW_ROWS, DRAW_COLS, DRAW_SEED)
       + tuple (dict (_bounds, name = _parameter, kind = 'number',
                      label = '%s:' % _parameter, note = _description,
-                     hint = '%s.  Takes %s.'
-                            % (_description[:1].upper () + _description[1:],
-                               accepts_text (_bounds)),
-                     accepts = accepts_text (_bounds), default = _default)
+                     hint = '%(what)s.  %(takes)s'
+                            % {'what': (_description[:1].upper ()
+                                        + _description[1:]),
+                               'takes': bounded (_bounds)[1]},
+                     refusal = bounded (_bounds)[0], default = _default)
                for _parameter, _description, _bounds, _default
                in _parameters)}
 
@@ -1433,19 +1530,27 @@ def heading (command):
   return ANALYSES[command].get ('heading', 'Options:')
 
 
+# The gap refusal, written out for each kind of slot rather than built
+# from a noun and an added s: a plural is not an s in every language, and
+# the sentence reads differently around it.
+GAPS = {
+  'input': 'input %(empty)d is empty and input %(held)d is not; the inputs '
+           'are filled from the first.',
+  'output': 'output %(empty)d is empty and output %(held)d is not; the '
+            'outputs are filled from the first.'}
+
+
 def filled (texts, noun):
   """How many of TEXTS are filled, which must be the first of them.  A gap
   is refused rather than passed as [], since a gap is a mistake and never a
-  value.  NOUN names them in the refusal."""
+  value.  NOUN says which refusal names them, 'input' or 'output'."""
   held, seen = 0, False
   for place, text in reversed (list (enumerate (texts))):
     if (text.strip ()):
       seen = True
       held = max (held, place + 1)
     elif (seen):
-      raise ValueError ('%s %d is empty and %s %d is not; the %ss are '
-                        'filled from the first.'
-                        % (noun, place + 1, noun, place + 2, noun))
+      raise ValueError (GAPS[noun] % {'empty': place + 1, 'held': place + 2})
   return held
 
 
@@ -1476,7 +1581,8 @@ def option_named (command, name):
   for option in ANALYSES[command]['options']:
     if (option['name'] == name):
       return option
-  raise KeyError ('%s declares no option "%s".' % (command, name))
+  raise KeyError ('%(command)s declares no option "%(option)s".'
+                  % {'command': command, 'option': name})
 
 
 def first_analysis ():
@@ -1511,8 +1617,10 @@ def option_numbers (option, value):
   """VALUE as the list of numbers OPTION takes, from the dialog's text, where
   they are written one after another, or from numbers already.  Raises
   ValueError saying what the option accepts."""
-  what = option['label'].rstrip (':').lower ()
-  refusal = ValueError ('the %s must be %s.' % (what, option['accepts']))
+  # A parameter row is labelled with its symbol, so 'the a must be' would
+  # be the refusal; its note is what the row says in words.
+  what = option.get ('note') or option['label'].rstrip (':').lower ()
+  refusal = ValueError (option['refusal'] % {'what': what})
   if (option['kind'] == 'number'):
     # One number, where a comma is the decimal point a Greek locale types
     words = [str (value).strip ().replace (',', '.')]
@@ -1569,7 +1677,8 @@ def option_args (command, values):
         [[{'kind': 'number', 'value': number} for number in numbers]]))
       continue
     if (value not in [choice for choice, unused in option['choices']]):
-      raise ValueError ('%s is not a value of "%s".' % (value, option['name']))
+      raise ValueError ('%(value)s is not a value of "%(option)s".'
+                        % {'value': value, 'option': option['name']})
     args.append ({'type': 'string', 'value': value})
   return args
 
@@ -1602,8 +1711,10 @@ def number_cell (value, column, row, allowed):
     if (not is_name (value)):
       return {'kind': 'number',
               'value': octave_core.NUMBER_TEXTS[value.lower ()]}
-    raise ValueError ('%s holds the text "%s"; %s'
-                      % (octave_core.cell_name (column, row), value, allowed))
+    raise ValueError ('%(at)s holds the text "%(text)s".  %(allowed)s'
+                      % {'at': octave_core.cell_name (column, row),
+                         'text': value,
+                         'allowed': allowed[:1].upper () + allowed[1:]})
   return {'kind': 'number', 'value': float (value)}
 
 
@@ -1658,9 +1769,12 @@ def labels_args (rows, by, column, row):
     number = number_cell (rows[r][1 - at], column + 1 - at, row + r,
                           allowed (by, 'range'))
     if (number['kind'] == 'number' and label == ''):
-      raise ValueError ('%s holds a value with no group label in %s.'
-                        % (octave_core.cell_name (column + 1 - at, row + r),
-                           octave_core.cell_name (column + at, row + r)))
+      raise ValueError ('%(at)s holds a value with no group label in '
+                        '%(beside)s.'
+                        % {'at': octave_core.cell_name (column + 1 - at,
+                                                        row + r),
+                           'beside': octave_core.cell_name (column + at,
+                                                            row + r)})
     cells.append ([number, octave_core.plain_cell (label)])
   return [octave_core.range_arg (cells), {'type': 'string', 'value': 'labels'},
           NO_NAMES]
@@ -1692,9 +1806,12 @@ def factor_args (rows, by, column, row):
                           allowed (by, 'factors'))
     for which in (first, second):
       if (number['kind'] == 'number' and rows[r][which] == ''):
-        raise ValueError ('%s holds a value with no factor in %s.'
-                          % (octave_core.cell_name (column + value, row + r),
-                             octave_core.cell_name (column + which, row + r)))
+        raise ValueError ('%(at)s holds a value with no factor in '
+                          '%(beside)s.'
+                          % {'at': octave_core.cell_name (column + value,
+                                                          row + r),
+                             'beside': octave_core.cell_name (column + which,
+                                                              row + r)})
     cells.append ([number, octave_core.plain_cell (rows[r][first]),
                    octave_core.plain_cell (rows[r][second])])
   return [octave_core.range_arg (cells), {'type': 'string', 'value': 'labels'},

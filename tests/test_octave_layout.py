@@ -233,6 +233,59 @@ class Hints (unittest.TestCase):
         self.assertNotIn ('layout', words, kind)
 
 
+class Translatable (unittest.TestCase):
+  """Every string a user reads is one whole sentence, or several, with the
+  only thing dropped into it named.  A frame joined to a fragment cannot be
+  translated into a language that inflects the noun, and a translator given
+  the halves separately cannot see what they make."""
+
+  # A format specifier, as against a plain per cent in "95% intervals".
+  PLACEHOLDER = re.compile (r'%(?:\([a-z]+\))?[-+ #0]*[0-9.]*[sdgfr]')
+
+  WORDS = ('title', 'detail', 'heading', 'listed', 'results')
+  OPTION_WORDS = ('label', 'note', 'hint', 'help')
+
+  def strings (self):
+    for command, analysis in octave_stats.ANALYSES.items ():
+      for key in self.WORDS:
+        if (analysis.get (key)):
+          yield ('%s %s' % (command, key), analysis[key])
+      for option in analysis['options']:
+        for key in self.OPTION_WORDS:
+          if (option.get (key)):
+            yield ('%s %s %s' % (command, option['name'], key), option[key])
+
+  def test_nothing_a_user_reads_holds_a_placeholder (self):
+    """These are shown as they stand.  One carrying %s is a sentence
+    somebody meant to finish elsewhere."""
+    for where, words in self.strings ():
+      self.assertEqual (self.PLACEHOLDER.findall (words), [], where)
+
+  def test_every_refusal_is_a_whole_sentence_naming_its_field (self):
+    """A refusal is the one kind that takes a placeholder, and it takes
+    exactly one: the field's own name, named rather than positional so a
+    translation may put it anywhere in the sentence."""
+    seen = 0
+    for command, analysis in octave_stats.ANALYSES.items ():
+      for option in analysis['options']:
+        if ('refusal' not in option):
+          continue
+        seen += 1
+        words = option['refusal']
+        where = '%s %s' % (command, option['name'])
+        self.assertEqual (self.PLACEHOLDER.findall (words),
+                          ['%(what)s'], where)
+        self.assertTrue (words.endswith ('.'), where)
+        self.assertTrue (words[0].islower (), where)
+    self.assertGreater (seen, 100)
+
+  def test_the_layout_holds_no_frame_of_its_own (self):
+    for name in dir (octave_layout):
+      held = getattr (octave_layout, name)
+      if (name.isupper () and isinstance (held, str)):
+        self.assertEqual (self.PLACEHOLDER.findall (held), [], name)
+
+
 class Lists (unittest.TestCase):
   """A list is drawn the width its own entry gives it, beside the choices
   the entry lists, and a field's width where it gives none."""

@@ -88,17 +88,17 @@ class GroupArgs (unittest.TestCase):
       octave_stats.group_args ((('A', 'B'), (1.0, 2.0), ('x', 3.0)),
                                'columns', 2, 4)
     self.assertEqual (str (raised.exception),
-                      'C7 holds the text "x"; the input range may hold group '
-                      'names in its first row, then numbers and empty cells '
-                      'only.')
+                      'C7 holds the text "x".  The input range may hold '
+                      'group names in its first row, then numbers and empty '
+                      'cells only.')
 
   def test_text_refused_by_cell_beside_header (self):
     with self.assertRaises (ValueError) as raised:
       octave_stats.group_args ((('A', 1.0), ('B', 'x')), 'rows', 2, 4)
     self.assertEqual (str (raised.exception),
-                      'D6 holds the text "x"; the input range may hold group '
-                      'names in its first column, then numbers and empty cells '
-                      'only.')
+                      'D6 holds the text "x".  The input range may hold '
+                      'group names in its first column, then numbers and '
+                      'empty cells only.')
 
   def test_header_only_refused (self):
     with self.assertRaises (ValueError) as raised:
@@ -153,8 +153,9 @@ class LabelsArgs (unittest.TestCase):
     with self.assertRaises (ValueError) as raised:
       octave_stats.labels_args (((1.0, 'a'), ('x', 'b')), 'data-labels', 2, 4)
     self.assertEqual (str (raised.exception),
-                      'C6 holds the text "x"; the values may be numbers or '
-                      'empty cells, and the group labels text or numbers.')
+                      'C6 holds the text "x".  The values may be numbers '
+                      'or empty cells, and the group labels text or '
+                      'numbers.')
 
   def test_value_without_label_refused_by_cell (self):
     with self.assertRaises (ValueError) as raised:
@@ -205,8 +206,8 @@ class FactorArgs (unittest.TestCase):
     with self.assertRaises (ValueError) as raised:
       self.args (((5.0, 'a', 'x'), ('oops', 'b', 'y')))
     self.assertEqual (str (raised.exception),
-                      'A2 holds the text "oops"; the values may be numbers '
-                      'or empty cells, and the factor labels text or '
+                      'A2 holds the text "oops".  The values may be '
+                      'numbers or empty cells, and the factor labels text or '
                       'numbers.')
 
   def test_header_only_refused (self):
@@ -582,8 +583,20 @@ class Registry (unittest.TestCase):
                       [{'type': 'string', 'value': 'median'},
                        {'type': 'number', 'value': 0.0}])
 
-  def test_sample_refusal_names_the_sample (self):
-    self.assertIn ('sample names', octave_stats.allowed ('columns', 'sample'))
+  def test_every_refusal_names_what_the_analysis_reads (self):
+    """A sample has one name where groups have several, which a shared
+    frame with a noun dropped into it could not say."""
+    self.assertIn ('the sample name',
+                   octave_stats.allowed ('columns', 'sample'))
+    self.assertIn ('group names', octave_stats.allowed ('columns', 'range'))
+    self.assertIn ('measurement names',
+                   octave_stats.allowed ('rows', 'matched'))
+
+  def test_every_kind_and_layout_has_a_refusal (self):
+    for kind in octave_stats.NOUN:
+      for by in ('columns', 'rows', 'labels-data', 'data-labels'):
+        self.assertTrue (octave_stats.allowed (by, kind).endswith ('.'),
+                         '%s %s' % (kind, by))
 
   def test_options_fit_the_dialog (self):
     """One option is drawn in one row, whatever it draws, so the cap is on
@@ -705,25 +718,40 @@ class Registry (unittest.TestCase):
     with self.assertRaises (ValueError) as raised:
       octave_stats.option_args ('RandomBinomial', {'p': '1.5'})
     self.assertEqual (str (raised.exception),
-                      'the p must be a number from 0 to 1.')
+                      'the probability of success must be a number '
+                      'from 0 to 1.')
 
   def test_a_whole_parameter_is_refused_a_fraction (self):
     with self.assertRaises (ValueError) as raised:
       octave_stats.option_args ('RandomBinomial', {'N': '2.5'})
     self.assertEqual (str (raised.exception),
-                      'the n must be a whole number greater than 0.')
+                      'the number of trials must be a whole number '
+                      'greater than 0.')
 
-  def test_what_the_bounds_accept_is_said_in_words (self):
-    self.assertEqual (octave_stats.accepts_text (octave_stats.ANY),
-                      'a number')
-    self.assertEqual (octave_stats.accepts_text (octave_stats.POSITIVE),
-                      'a number greater than 0')
-    self.assertEqual (octave_stats.accepts_text (octave_stats.FROM_HALF),
-                      'a number 0.5 or more')
-    self.assertEqual (octave_stats.accepts_text (octave_stats.TO_TWO),
-                      'a number greater than 0 and no more than 2')
-    self.assertEqual (octave_stats.accepts_text (octave_stats.SKEW),
-                      'a number from -1 to 1')
+  def test_what_the_bounds_take_is_one_whole_sentence (self):
+    """The refusal and the tooltip's last sentence, both written out,
+    neither assembled from a frame and a fragment."""
+    for held, refusal, takes in (
+        (octave_stats.ANY, octave_stats.TAKES_ANY, 'Takes a number.'),
+        (octave_stats.POSITIVE, octave_stats.TAKES_POSITIVE,
+         'Takes a number greater than 0.'),
+        (octave_stats.FROM_HALF, octave_stats.TAKES_FROM_HALF,
+         'Takes a number of 0.5 or more.'),
+        (octave_stats.TO_TWO, octave_stats.TAKES_TO_TWO,
+         'Takes a number greater than 0 and no more than 2.'),
+        (octave_stats.SKEW, octave_stats.TAKES_SKEW,
+         'Takes a number from -1 to 1.')):
+      self.assertEqual (octave_stats.bounded (held), (refusal, takes))
+
+  def test_every_shape_the_generators_use_has_words (self):
+    """A parameter whose bounds are not in BOUNDED reaches the user with
+    no words at all, which is a KeyError at import."""
+    for command, analysis in octave_stats.ANALYSES.items ():
+      for option in analysis['options']:
+        if ('note' not in option):
+          continue
+        self.assertIn (octave_stats.shape (option), octave_stats.BOUNDED,
+                       '%s %s' % (command, option['name']))
 
   def test_every_category_holds_an_analysis (self):
     """A category joins the dialog with the analyses that fill it, so a
@@ -750,7 +778,7 @@ class Registry (unittest.TestCase):
         if (option['kind'] == 'radios'):
           self.assertEqual (len (option['choices']), 2, option['name'])
         if (option['kind'] in ('number', 'numbers')):
-          self.assertTrue ({'accepts', 'minimum', 'maximum'} <= set (option),
+          self.assertTrue ({'refusal', 'minimum', 'maximum'} <= set (option),
                            option['name'])
 
   def test_option_defaults (self):
@@ -871,7 +899,7 @@ class NumberOption (unittest.TestCase):
 
   OPTION = {'name': 'alpha', 'kind': 'number', 'label': 'Significance level:',
             'hint': 'Sets the intervals.',
-            'accepts': 'a number greater than 0 and less than 1',
+            'refusal': octave_stats.TAKES_OPEN_UNIT,
             'minimum': 0.0, 'maximum': 1.0, 'default': '0.05'}
 
   def test_typed_number (self):
@@ -899,7 +927,7 @@ class NumbersOption (unittest.TestCase):
 
   OPTION = {'name': 'levels', 'kind': 'numbers', 'label': 'Levels per factor:',
             'hint': 'One number per factor.',
-            'accepts': 'one whole number per factor, each 2 or more',
+            'refusal': octave_stats.TAKES_LEVELS,
             'minimum': 1.0, 'maximum': 1000.0, 'whole': True,
             'default': '2 3 3'}
 
@@ -1119,8 +1147,8 @@ class AnalysesInOctave (unittest.TestCase):
       self.run_analysis (rows, 'columns', 'TtestPaired')
     self.assertEqual (
       str (raised.exception),
-      'B2 holds the text "oops"; the input range may hold measurement names '
-      'in its first row, then numbers and empty cells only.')
+      'B2 holds the text "oops".  The input range may hold measurement '
+      'names in its first row, then numbers and empty cells only.')
 
   FACTORIAL = (('Yield', 'Fert', 'Var'),
                (52.0, 'lo', 'x'), (60.0, 'lo', 'y'), (63.0, 'hi', 'x'),

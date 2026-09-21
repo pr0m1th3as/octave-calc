@@ -344,9 +344,10 @@ def expand_pairs (rows, column, row, resolve):
   COLUMN and ROW: a name in the first column, its value in the second, one
   pair per row.  A row with no name is skipped."""
   if (len (rows[0]) != 2):
-    raise ValueError ('the "pairs" range at %s has %d columns; it needs two, '
-                      'name then value.'
-                      % (cell_name (column, row), len (rows[0])))
+    raise ValueError ('the "pairs" range at %(at)s has %(held)d columns; '
+                      'it needs two, name then value.'
+                      % {'at': cell_name (column, row),
+                         'held': len (rows[0])})
   built = []
   for i, (name, value) in enumerate (rows):
     if (name['kind'] == 'empty'):
@@ -355,9 +356,11 @@ def expand_pairs (rows, column, row, resolve):
       raise ValueError ('%s holds an option name that is not text.'
                         % cell_name (column, row + i))
     if (value['kind'] == 'empty' and not value.get ('na')):
-      raise ValueError ('%s names the option "%s" but %s holds no value.'
-                        % (cell_name (column, row + i), name['value'],
-                           cell_name (column + 1, row + i)))
+      raise ValueError ('%(at)s names the option "%(name)s" but '
+                        '%(beside)s holds no value.'
+                        % {'at': cell_name (column, row + i),
+                           'name': name['value'],
+                           'beside': cell_name (column + 1, row + i)})
     built.append ({'type': 'string', 'value': name['value']})
     built.append (pair_value (value, cell_name (column + 1, row + i),
                               resolve))
@@ -405,8 +408,9 @@ def refuse_errors (rows, column, row):
   for i, cells in enumerate (rows):
     for j, cell in enumerate (cells):
       if (cell['kind'] == 'error'):
-        return ('%s holds the error %s.'
-                % (cell_name (column + j, row + i), cell['value']))
+        return ('%(at)s holds the error %(error)s.'
+                % {'at': cell_name (column + j, row + i),
+                   'error': cell['value']})
   return None
 
 
@@ -644,6 +648,31 @@ def failed_warning (runner):
 # package is installed and loadable rather than assumed.
 PROBE = ('normpdf', [{'type': 'number', 'value': 0.0}])
 
+# What the first run says, each one whole: a sentence spliced together from
+# a frame and a clause cannot be translated, and the reason a sandbox gives
+# is the server's words, carried through as they are.
+NO_OCTAVE = ('No Octave was found: %(why)s  Install GNU Octave, or put '
+             'octave-cli on the PATH this machine starts LibreOffice with.')
+
+CANNOT_RUN = ('Octave was found, but an analysis cannot run here: '
+              '%(why)s.')
+
+CANNOT_RUN_MISSING = ('Octave was found, but an analysis cannot run here: '
+                      '%(why)s.  Install it at an Octave prompt with '
+                      '"pkg install -forge %(package)s", then open this '
+                      'menu again.')
+
+NO_SANDBOX = ('The sandbox is not running here.  The Statistics menu works '
+              'without it, and every analysis of its own with it.  Cells '
+              'need it, and the Custom analysis can reach only the '
+              'functions in your own folders.')
+
+NO_SANDBOX_BECAUSE = ('The sandbox is not running here: %(why)s.  The '
+                      'Statistics menu works without it, and every '
+                      'analysis of its own with it.  Cells need it, and '
+                      'the Custom analysis can reach only the functions in '
+                      'your own folders.')
+
 
 def first_run (settings):
   """What stops the Statistics menu working on this machine, and what merely
@@ -655,9 +684,7 @@ def first_run (settings):
   SETTINGS is what octave_settings.read gives, the packages among them."""
   problem = octave_problem ()
   if (problem):
-    return ['No Octave was found: %s  Install GNU Octave, or put octave-cli '
-            'on the PATH this machine starts LibreOffice with.'
-            % problem.capitalize ()]
+    return [NO_OCTAVE % {'why': problem.capitalize ()}]
   found = []
   try:
     runner = server ('statistics', settings)
@@ -665,19 +692,12 @@ def first_run (settings):
   except Exception as err:
     said = str (err).rstrip ('.')
     named = [name for name in settings['packages'] if name in said]
-    found.append (
-      'Octave was found, but an analysis cannot run here: %s.%s'
-      % (said,
-         '  Install it at an Octave prompt with "pkg install -forge %s", '
-         'then open this menu again.' % named[0] if named else ''))
-    return found
+    if (named):
+      return [CANNOT_RUN_MISSING % {'why': said, 'package': named[0]}]
+    return [CANNOT_RUN % {'why': said}]
   if (runner.state != 'active'):
-    found.append ('The sandbox is not running here%s  The Statistics menu '
-                  'works without it, and every analysis of its own with it.  '
-                  'Cells need it, and the Custom analysis can reach only the '
-                  'functions in your own folders.'
-                  % (': %s.' % runner.reason.rstrip ('.') if runner.reason
-                     else '.'))
+    found.append (NO_SANDBOX_BECAUSE % {'why': runner.reason.rstrip ('.')}
+                  if runner.reason else NO_SANDBOX)
   return found
 
 

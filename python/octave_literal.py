@@ -36,9 +36,16 @@ import octave_core
 # The most elements a typed matrix or range may hold.
 MAX_ELEMENTS = 1000000
 
-# What a field takes, ending a refusal.
-ACCEPTS = ('a number, Inf or NaN; text in quotes; true or false; []; a '
-           'matrix such as [1, 2; 3, 4]; or a range such as 1:5 or 0:0.1:1')
+# What a field takes, written out in each refusal rather than joined to a
+# frame, so that each is one whole sentence a translator can arrange.
+TAKES = ('a field holds a number, Inf or NaN; text in quotes; true or '
+         'false; []; a matrix such as [1, 2; 3, 4]; or a range such as 1:5 '
+         'or 0:0.1:1.')
+
+TAKES_NO_PARENTHESES = ('a field holds a number, Inf or NaN; text in '
+                        'quotes; true or false; []; a matrix such as '
+                        '[1, 2; 3, 4]; or a range such as 1:5 or 0:0.1:1, '
+                        'and no parentheses.')
 
 UNSIGNED = re.compile (r'(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\Z')
 
@@ -87,9 +94,10 @@ def spread (token):
                       else bounds
   held = counted (first, step, last)
   if (held > MAX_ELEMENTS):
-    raise ValueError ('the range %s holds %d numbers, and the most a field '
-                      'may hold is %d.' % (token.strip (), held,
-                                           MAX_ELEMENTS))
+    raise ValueError ('the range %(range)s holds %(held)d numbers, and '
+                      'the most a field may hold is %(most)d.'
+                      % {'range': token.strip (), 'held': held,
+                         'most': MAX_ELEMENTS})
   return [first + step * n for n in range (held)]
 
 
@@ -132,8 +140,9 @@ def matrix (body):
     raise ValueError ('every row of a matrix must hold the same count of '
                       'numbers.')
   if (width * len (rows) > MAX_ELEMENTS):
-    raise ValueError ('the matrix holds %d numbers, and the most a field may '
-                      'hold is %d.' % (width * len (rows), MAX_ELEMENTS))
+    raise ValueError ('the matrix holds %(held)d numbers, and the most a '
+                      'field may hold is %(most)d.'
+                      % {'held': width * len (rows), 'most': MAX_ELEMENTS})
   return rows
 
 
@@ -157,7 +166,7 @@ def parse (text):
                       'cannot be typed here.  Type a column with semicolons, '
                       '[1; 2; 3].')
   if ('(' in body or ')' in body):
-    raise ValueError ('a field holds %s, and no parentheses.' % ACCEPTS)
+    raise ValueError (TAKES_NO_PARENTHESES)
   held = quoted (body)
   if (held is not None):
     return {'type': 'string', 'value': held}
@@ -171,7 +180,7 @@ def parse (text):
     return numbers_arg ([many] if many else [])
   if (body[0] == '[' and body[-1] == ']'):
     return numbers_arg (matrix (body))
-  raise ValueError ('a field holds %s.' % ACCEPTS)
+  raise ValueError (TAKES)
 
 
 def pairs (text):

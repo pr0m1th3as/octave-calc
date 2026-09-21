@@ -101,6 +101,10 @@ APPFONT = uno.getConstantByName ('com.sun.star.util.MeasureUnit.APPFONT')
 POSSIZE = uno.getConstantByName ('com.sun.star.awt.PosSize.POSSIZE')
 
 # One analysis at a time.  A second would fight the first for the sheet.
+# What the results range says it will hold, where the range itself gives
+# the size of a draw.
+SIZE_SAYS = 'Size: %(rows)d rows by %(cols)d columns.'
+
 _busy = threading.Lock ()
 
 # The first-run report is said once a session, as the sandbox warning is.
@@ -627,7 +631,7 @@ class Analysis:
         return
       if (size):
         part ('size_text').getModel ().Label = (
-          'Size: %d rows by %d columns.' % size)
+          SIZE_SAYS % {'rows': size[0], 'cols': size[1]})
       if (analysis.get ('custom')):
         for place in range (octave_stats.CUSTOM_SLOTS):
           part ('in%d_text' % place).getModel ().Text = state['options'].get (
@@ -678,7 +682,7 @@ class Analysis:
         fill (command, size)
       elif (size):
         part ('size_text').getModel ().Label = (
-          'Size: %d rows by %d columns.' % size)
+          SIZE_SAYS % {'rows': size[0], 'cols': size[1]})
 
     def in_folder (path):
       """The functions the folder PATH holds, by name, in order."""
@@ -929,8 +933,8 @@ class Analysis:
       if (len (name) > 1 and name[0] == "'" and name[-1] == "'"):
         name = name[1:-1].replace ("''", "'")
       if (not self.document.Sheets.hasByName (name)):
-        raise ValueError ('the %s "%s" is not a range in this document.'
-                          % (what, text))
+        raise ValueError ('the %(what)s "%(text)s" is not a range in '
+                          'this document.' % {'what': what, 'text': text})
       sheet = self.document.Sheets.getByName (name)
     else:
       cells = reference
@@ -938,8 +942,8 @@ class Analysis:
     try:
       return sheet.getCellRangeByName (cells)
     except Exception:
-      raise ValueError ('the %s "%s" is not a range in this document.'
-                        % (what, text))
+      raise ValueError ('the %(what)s "%(text)s" is not a range in this '
+                        'document.' % {'what': what, 'text': text})
 
   def sized (self, answers, corner):
     """ANSWERS with the size options of an analysis that takes its size from
@@ -994,8 +998,10 @@ class Analysis:
       try:
         found = self.resolve (text, what)
       except ValueError:
-        raise ValueError ('%s holds neither a range of this document nor a '
-                          'value: %s' % (what, refusal))
+        raise ValueError ('%(what)s holds neither a range of this '
+                          'document nor a value.  %(why)s'
+                          % {'what': what,
+                             'why': refusal[:1].upper () + refusal[1:]})
       return octave_core.plain_range (found.getDataArray ())
 
     return octave_stats.custom_args (
@@ -1025,10 +1031,11 @@ class Analysis:
         where = source.getRangeAddress ()
         errors = source.queryFormulaCells (RESULT_ERROR).getRangeAddresses ()
         if (errors):
-          raise ValueError ('%s holds an error; %s'
-                            % (octave_core.cell_name (errors[0].StartColumn,
-                                                      errors[0].StartRow),
-                               octave_stats.allowed (by, analysis['input'])))
+          allowed = octave_stats.allowed (by, analysis['input'])
+          raise ValueError ('%(at)s holds an error.  %(allowed)s'
+                            % {'at': octave_core.cell_name (
+                                 errors[0].StartColumn, errors[0].StartRow),
+                               'allowed': allowed[:1].upper () + allowed[1:]})
         args = (octave_stats.analysis_args (source.getDataArray (), by,
                                             where.StartColumn, where.StartRow,
                                             analysis['input'])
@@ -1096,9 +1103,12 @@ class Analysis:
       height, width = len (table), len (table[0]) if table else 0
       at = plain (corner.AbsoluteName)
       if (wanted is not None and wanted != (height, width)):
-        self.refuse ('%s is %d rows by %d columns and the result written '
-                     'there is %d by %d; pick a single cell to let it be any '
-                     'size.' % (at, wanted[0], wanted[1], height, width),
+        self.refuse ('%(at)s is %(asked_rows)d rows by %(asked_cols)d '
+                     'columns and the result written there is %(rows)d by '
+                     '%(cols)d.  Pick a single cell to let it be any size.'
+                     % {'at': at, 'asked_rows': wanted[0],
+                        'asked_cols': wanted[1], 'rows': height,
+                        'cols': width},
                      answers, interactive)
         return
       try:
@@ -1106,8 +1116,9 @@ class Analysis:
           top.StartColumn, top.StartRow, top.StartColumn + width - 1,
           top.StartRow + height - 1)
       except Exception:
-        self.refuse ('the results, %d rows by %d columns, do not fit on the '
-                     'sheet from %s.' % (height, width, at), answers,
+        self.refuse ('the results, %(rows)d rows by %(cols)d columns, '
+                     'do not fit on the sheet from %(at)s.'
+                     % {'rows': height, 'cols': width, 'at': at}, answers,
                      interactive)
         return
       if (where is not None
@@ -1122,8 +1133,9 @@ class Analysis:
         if (octave_stats.overlaps (
               bounds (blocks[first][0].getRangeAddress ()),
               bounds (blocks[second][0].getRangeAddress ()))):
-          self.refuse ('output %d and output %d would be written over each '
-                       'other.' % (first + 1, second + 1), answers,
+          self.refuse ('output %(first)d and output %(second)d would be '
+                       'written over each other.'
+                       % {'first': first + 1, 'second': second + 1}, answers,
                        interactive)
           return
     if (interactive):

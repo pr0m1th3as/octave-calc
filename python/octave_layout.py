@@ -192,11 +192,9 @@ RESULTS_HINT = 'The cell the results start from.  They fill right and down '\
 
 def results_hint (command):
   """What the results field says: where the results start, and how much
-  room they take where the analysis knows it."""
-  sized = octave_stats.ANALYSES[command].get ('results')
-  if (not sized):
-    return RESULTS_HINT
-  return 'The top left cell.  The results fill %s.' % sized
+  room they take where the analysis knows it.  The analysis carries the
+  whole sentence, not the size to drop into one."""
+  return octave_stats.ANALYSES[command].get ('results') or RESULTS_HINT
 
 RESULTS_HELP = ('One cell, the top left corner of the results.  They fill '
                 'right and down from it, and you are asked before anything '
