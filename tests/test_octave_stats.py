@@ -243,16 +243,11 @@ class Packaged (unittest.TestCase):
         if (name.endswith ('.m')):
           self.assertIn (published % name, self.build.CONTENT, name)
 
-  # The free-form workbench macro, which the Custom analysis replaces.  It
-  # is run from Tools > Macros and was never in the package; it goes when
-  # the Custom analysis lands.
-  RETIRED = ('octave_calc.py',)
-
   def test_every_python_module_is_packaged (self):
     """A module left out of the package is imported by nothing and the
     component fails to load, which the dialog cannot report."""
     for name in os.listdir (os.path.join (ROOT, 'python')):
-      if (name.endswith ('.py') and name not in self.RETIRED):
+      if (name.endswith ('.py')):
         self.assertIn (name, self.build.CONTENT, name)
 
   def test_every_packaged_source_exists (self):
