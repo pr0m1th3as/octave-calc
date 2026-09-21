@@ -855,5 +855,39 @@ class OwnServers (unittest.TestCase):
     self.assertIn ('octave_calc_no_such_package', result[0][0])
 
 
+class FirstRun (unittest.TestCase):
+  """What the menu says before anything has been asked for, rather than
+  leaving every cause to the first failed run."""
+
+  def report (self, **changes):
+    try:
+      return octave_core.first_run (settings (**changes))
+    finally:
+      octave_core.stop_servers ()
+      octave_core.clear ()
+
+  def test_a_working_machine_is_told_only_what_limits_it (self):
+    """Nothing at all where the sandbox runs, and the one line about the
+    sandbox where it does not.  Never a complaint about the analyses."""
+    found = self.report (packages = ['statistics'])
+    if (state_here () == 'active'):
+      self.assertEqual (found, [])
+    else:
+      self.assertEqual (len (found), 1)
+      self.assertIn ('sandbox', found[0])
+
+  def test_a_missing_package_is_named_before_anything_is_asked (self):
+    found = self.report (packages = ['octave_calc_no_such_package'])
+    self.assertEqual (len (found), 1)
+    self.assertIn ('octave_calc_no_such_package', found[0])
+    self.assertIn ('pkg install -forge octave_calc_no_such_package', found[0])
+    self.assertTrue (found[0].endswith ('.'), found[0])
+
+  def test_the_probe_is_a_statistics_function (self):
+    """The check proves the package loads rather than assuming it: a core
+    function would pass with statistics missing."""
+    self.assertEqual (octave_core.PROBE[0], 'normpdf')
+
+
 if (__name__ == '__main__'):
   unittest.main ()

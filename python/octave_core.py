@@ -612,6 +612,47 @@ def failed_warning (runner):
           'menu works without it; cells need it.' % runner.reason.rstrip ('.'))
 
 
+# A statistics function of one argument, cheap to call, used to prove the
+# package is installed and loadable rather than assumed.
+PROBE = ('normpdf', [{'type': 'number', 'value': 0.0}])
+
+
+def first_run (settings):
+  """What stops the Statistics menu working on this machine, and what merely
+  limits it, one sentence each, empty where everything is in place.  Only a
+  running server can answer for devtools, the packages and the sandbox, so
+  this asks one to start: the cost the first analysis of a session pays
+  anyway.
+
+  SETTINGS is what octave_settings.read gives, the packages among them."""
+  problem = octave_problem ()
+  if (problem):
+    return ['No Octave was found: %s  Install GNU Octave, or put octave-cli '
+            'on the PATH this machine starts LibreOffice with.'
+            % problem.capitalize ()]
+  found = []
+  try:
+    runner = server ('statistics', settings)
+    runner.call (PROBE[0], PROBE[1])
+  except Exception as err:
+    said = str (err).rstrip ('.')
+    named = [name for name in settings['packages'] if name in said]
+    found.append (
+      'Octave was found, but an analysis cannot run here: %s.%s'
+      % (said,
+         '  Install it at an Octave prompt with "pkg install -forge %s", '
+         'then open this menu again.' % named[0] if named else ''))
+    return found
+  if (runner.state != 'active'):
+    found.append ('The sandbox is not running here%s  The Statistics menu '
+                  'works without it, and every analysis of its own with it.  '
+                  'Cells need it, and the Custom analysis can reach only the '
+                  'functions in your own folders.'
+                  % (': %s.' % runner.reason.rstrip ('.') if runner.reason
+                     else '.'))
+  return found
+
+
 def cell_value (kind, cell):
   """One element of an octave_call output as a cell holds it: text as text,
   anything else as a number.  A logical value is 1 or 0, a date or duration

@@ -103,6 +103,9 @@ POSSIZE = uno.getConstantByName ('com.sun.star.awt.PosSize.POSSIZE')
 # One analysis at a time.  A second would fight the first for the sheet.
 _busy = threading.Lock ()
 
+# The first-run report is said once a session, as the sandbox warning is.
+_CHECKED = []
+
 
 class _Callback (unohelper.Base, XCallback):
   """Runs a function of no arguments on the main thread."""
@@ -303,6 +306,7 @@ class Analysis:
     if (problem):
       self.message (sentence (problem))
       return
+    self.first_run ()
     if ('InputRange' in options and self.command):
       self.launch ({'command': self.command,
                     'input': options['InputRange'],
@@ -315,6 +319,32 @@ class Analysis:
     self.prompt ({'command': command, 'input': self.selected (), 'output': '',
                   'by': 'columns',
                   'options': octave_stats.option_defaults (command)})
+
+  def first_run (self):
+    """Say once a session what is missing or limited here, before anything
+    has been asked for.  Every cause is reported otherwise on the first
+    failed run, one at a time and only after a dialog has been filled in.
+    Starting the server is what that first run would pay anyway."""
+    if (_CHECKED):
+      return
+    _CHECKED.append (True)
+    try:
+      found = octave_core.first_run (self.settings ())
+    except Exception:
+      # A check that cannot run says nothing; the analysis reports it
+      return
+    if (found):
+      self.message ('\n\n'.join (found), 'WARNINGBOX')
+
+  def settings (self):
+    """The server settings an analysis runs with: the user's own folders
+    and the extension's beside them, and the statistics package the
+    analyses need added to whatever the user asked for."""
+    settings = octave_settings.read (self.ctx, 'workbench')
+    settings['folders'] = settings['folders'] + [FOLDER]
+    if (octave_stats.PACKAGE not in settings['packages']):
+      settings['packages'] = settings['packages'] + [octave_stats.PACKAGE]
+    return settings
 
   def selected (self):
     """The selected range, as the default input range, or nothing."""
@@ -1008,13 +1038,10 @@ class Analysis:
       return
 
     try:
-      settings = octave_settings.read (self.ctx, 'workbench')
+      settings = self.settings ()
     except Exception as err:
       self.message ('Could not read the extension settings: %s' % err)
       return
-    settings['folders'] = settings['folders'] + [FOLDER]
-    if (octave_stats.PACKAGE not in settings['packages']):
-      settings['packages'] = settings['packages'] + [octave_stats.PACKAGE]
 
     if (not _busy.acquire (blocking = False)):
       self.message ('An analysis is already running.  Wait for it to finish.',
