@@ -290,8 +290,9 @@ class Described (unittest.TestCase):
     said = self.valued (self.described, 'version')
     self.assertEqual (octave_core.VERSION, said)
     self.assertEqual (self.build.VERSION, said)
-    self.assertTrue (self.build.PACKAGE.endswith ('octave-calc-%s.oxt' % said),
-                     self.build.PACKAGE)
+    self.assertTrue (
+      self.build.RELEASE_PACKAGE.endswith ('octave-calc-%s.oxt' % said),
+      self.build.RELEASE_PACKAGE)
 
   def test_every_file_it_names_is_packaged (self):
     for href in self.hrefs (self.described):
@@ -314,6 +315,16 @@ class Described (unittest.TestCase):
     self.assertEqual (
       self.described.getElementsByTagName ('OpenOffice.org-minimal-version'),
       [])
+
+  def test_a_build_does_not_write_over_the_released_one (self):
+    """Every build but a release build writes -dev, so rebuilding cannot
+    destroy the package a release was cut from, which is the only local
+    copy of what people installed."""
+    self.assertNotEqual (self.build.DEV_PACKAGE, self.build.RELEASE_PACKAGE)
+    self.assertTrue (self.build.DEV_PACKAGE.endswith ('-dev.oxt'),
+                     self.build.DEV_PACKAGE)
+    self.assertIn (self.build.VERSION,
+                   os.path.basename (self.build.DEV_PACKAGE))
 
   def test_the_licence_is_packaged (self):
     """A GPL extension that ships without its licence is not one."""
@@ -347,7 +358,7 @@ class Described (unittest.TestCase):
                       self.valued (self.described, 'version'))
 
   def test_the_feed_points_at_the_package_this_build_makes (self):
-    named = os.path.basename (self.build.PACKAGE)
+    named = os.path.basename (self.build.RELEASE_PACKAGE)
     downloads = [href for href in self.hrefs (self.feed)
                  if href.endswith ('.oxt')]
     self.assertEqual (len (downloads), 1)

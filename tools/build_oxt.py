@@ -24,10 +24,18 @@ dependency of THIS machine and not of any user's: the .oxt ships the compiled
 type library, LibreOffice registers it on install, and the result is
 architecture-neutral, so there is no per-platform build.
 
+A build is a development build unless it says otherwise, and is named
+-dev so that rebuilding cannot write over the package a release was cut
+from.  The released one is built deliberately, once, with --release, and
+that refuses to write over a file already there.
+
 Usage:
-  python3 tools/build_oxt.py              build dist/octave-calc.oxt
+  python3 tools/build_oxt.py              a development build, named -dev
+  python3 tools/build_oxt.py --release    the one a release is cut from
   python3 tools/build_oxt.py --install    build, then install for this user
   python3 tools/build_oxt.py --remove     uninstall
+
+--install installs whichever of the two this call built.
 """
 
 import io
@@ -57,7 +65,12 @@ def version ():
 
 
 VERSION = version ()
-PACKAGE = os.path.join (DIST, 'octave-calc-%s.oxt' % VERSION)
+
+# The one a release is cut from, and the one every other build writes.  A
+# development build carries the same version inside it, since description.xml
+# is what LibreOffice reads, so the two are told apart by their names alone.
+RELEASE_PACKAGE = os.path.join (DIST, 'octave-calc-%s.oxt' % VERSION)
+DEV_PACKAGE = os.path.join (DIST, 'octave-calc-%s-dev.oxt' % VERSION)
 
 SDK_BIN = '/usr/lib/libreoffice/sdk/bin'
 OFFICE_TYPES = ('/usr/lib/libreoffice/program/types.rdb',
@@ -139,26 +152,36 @@ def compile_types ():
   print ('types   %s (%d bytes)' % (output, os.path.getsize (output)))
 
 
-def build ():
+def build (release = False):
+  """Write the package and return where it went.  A release build refuses
+  to write over one already there: that file is what was uploaded, and
+  overwriting it loses the only local copy of what people installed."""
+  package_at = RELEASE_PACKAGE if release else DEV_PACKAGE
+  if (release and os.path.exists (package_at)):
+    sys.exit ('%s is already there.  Remove it first if this really is a '
+              'new build of that version.' % os.path.relpath (package_at,
+                                                              HERE))
   compile_types ()
   os.makedirs (DIST, exist_ok = True)
-  if (os.path.exists (PACKAGE)):
-    os.remove (PACKAGE)
-  with zipfile.ZipFile (PACKAGE, 'w', zipfile.ZIP_DEFLATED) as package:
+  if (os.path.exists (package_at)):
+    os.remove (package_at)
+  with zipfile.ZipFile (package_at, 'w', zipfile.ZIP_DEFLATED) as package:
     for name in sorted (CONTENT):
       source = CONTENT[name]
       if (not os.path.exists (source)):
         sys.exit ('missing %s' % source)
       package.write (source, name)
   print ('package %s (%d bytes, %d files)'
-         % (PACKAGE, os.path.getsize (PACKAGE), len (CONTENT)))
+         % (package_at, os.path.getsize (package_at), len (CONTENT)))
+  return package_at
 
 
-def install ():
+def install (package_at):
   if (office_running ()):
     sys.exit ('LibreOffice is running.  Close it first.')
-  subprocess.check_call (['unopkg', 'add', '-f', PACKAGE])
-  print ('installed %s' % IDENTIFIER)
+  subprocess.check_call (['unopkg', 'add', '-f', package_at])
+  print ('installed %s from %s'
+         % (IDENTIFIER, os.path.basename (package_at)))
 
 
 def remove ():
@@ -171,6 +194,6 @@ if (__name__ == '__main__'):
   if ('--remove' in sys.argv):
     remove ()
   else:
-    build ()
+    built = build ('--release' in sys.argv)
     if ('--install' in sys.argv):
-      install ()
+      install (built)
