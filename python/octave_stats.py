@@ -1256,8 +1256,10 @@ ANALYSES = {
        'refusal': TAKES_FACTOR_COUNT,
        'minimum': 0.0, 'maximum': 16.0, 'whole': True, 'default': '3'},)},
   'SampleSize': {
-    'results': 'The top left cell.  The results fill 2 columns and 10 '
-                 'rows.',
+    'results': 'The top left cell.  The results fill 2 columns, and 11 '
+                 'rows for a two-sample t-test, 10 for the other t and z '
+                 'tests, and 9 for the rest, which take no standard '
+                 'deviation.',
     'category': 'Experimental design',
     'title': 'Sample size',
     'function': 'octave_calc_sampsize',
@@ -1290,8 +1292,9 @@ ANALYSES = {
                  'minimum': 0.0, 'maximum': 1.0, 'default': '0.9'},
                 ALPHA_LEVEL)},
   'TestPower': {
-    'results': 'The top left cell.  The results fill 2 columns and 10 '
-                 'rows.',
+    'results': 'The top left cell.  The results fill 2 columns, and 10 '
+                 'rows for the t and z tests, 9 for the rest, which take no '
+                 'standard deviation.',
     'category': 'Experimental design',
     'title': 'Power',
     'function': 'octave_calc_testpower',
@@ -1314,8 +1317,9 @@ ANALYSES = {
                  'maximum': float ('inf'), 'default': '6'},
                 SAMPLE_SIZE, ALPHA_LEVEL)},
   'Detectable': {
-    'results': 'The top left cell.  The results fill 2 columns and 10 '
-                 'rows.',
+    'results': 'The top left cell.  The results fill 2 columns, and 10 '
+                 'rows for the t and z tests, 9 for the rest, which take no '
+                 'standard deviation.',
     'category': 'Experimental design',
     'title': 'Detectable difference',
     'function': 'octave_calc_detectable',
