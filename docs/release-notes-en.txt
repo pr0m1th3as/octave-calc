@@ -12,9 +12,10 @@ The first release.
 
   * Every call runs in a devtools server, sandboxed where the machine
     allows it.  Formulas need the sandbox; the menu does not, so the menu
-    works on Windows, where there is no sandbox yet.
+    should work on Windows, which has no sandbox yet.  That has not been
+    run, and neither has macOS; please say what you find.
 
 Needs GNU Octave with the devtools and statistics packages installed.
 
-Tested on LibreOffice 25.2 on Linux.  It declares 7.4 as its minimum and
-has not been run below 25.2; please report what you find.
+Tested on LibreOffice 25.2 on Linux only.  It declares 7.4 as its
+minimum and has not been run below 25.2.
