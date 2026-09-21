@@ -30,8 +30,9 @@ from com.sun.star.beans import PropertyValue
 
 NODE = '/org.octavecalc.Settings'
 
-# The deadline each server role takes.
-SECONDS = {'cell': 'CellSeconds', 'workbench': 'WorkbenchSeconds'}
+# The deadline each role takes: a cell formula, or an analysis of the
+# Statistics menu.
+SECONDS = {'cell': 'CellSeconds', 'analysis': 'AnalysisSeconds'}
 
 # The lists the dialog may edit.  Everything else is Expert Configuration's.
 EDITABLE = ('Folders', 'Analyses')
@@ -72,8 +73,8 @@ def relist (ctx, name, values):
 
 
 def read (ctx, role):
-  """The Server settings for ROLE, 'cell' or 'workbench', as octave_core.Server
-  takes them."""
+  """The Server settings for ROLE, 'cell' or 'analysis', as
+  octave_core.Server takes them."""
   access = opened (ctx, 'com.sun.star.configuration.ConfigurationAccess')
   return {'folders': list (access.getByName ('Folders') or ()),
           'packages': list (access.getByName ('Packages') or ()),

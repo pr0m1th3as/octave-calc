@@ -36,8 +36,8 @@
    <info><desc>Seconds a cell formula's call may run before it is stopped.</desc></info>
    <value>10</value>
   </prop>
-  <prop oor:name="WorkbenchSeconds" oor:type="xs:int">
-   <info><desc>Seconds a workbench analysis may run before it is stopped.</desc></info>
+  <prop oor:name="AnalysisSeconds" oor:type="xs:int">
+   <info><desc>Seconds an analysis of the Statistics menu may run before it is stopped.</desc></info>
    <value>300</value>
   </prop>
  </component>

@@ -340,7 +340,7 @@ class Analysis:
     """The server settings an analysis runs with: the user's own folders
     and the extension's beside them, and the statistics package the
     analyses need added to whatever the user asked for."""
-    settings = octave_settings.read (self.ctx, 'workbench')
+    settings = octave_settings.read (self.ctx, 'analysis')
     settings['folders'] = settings['folders'] + [FOLDER]
     if (octave_stats.PACKAGE not in settings['packages']):
       settings['packages'] = settings['packages'] + [octave_stats.PACKAGE]

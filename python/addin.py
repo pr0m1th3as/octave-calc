@@ -22,7 +22,7 @@ by cell.  Everything else it does is in octave_core, which knows nothing about
 LibreOffice and can be tested from a plain Python prompt.
 
 A formula cannot use a thread: Calc's engine calls and waits for a value, so
-this path blocks where the menu-driven workbench does not.  That is why
+this path blocks where the Statistics menu does not.  That is why
 octave_core memoises, and why a recalculation that changes no input costs
 nothing.
 """

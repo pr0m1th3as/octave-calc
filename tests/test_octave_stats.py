@@ -27,7 +27,9 @@ sandbox can run.  The analysis functions carry their own BISTs.
 import ast
 import importlib.util
 import math
+import io
 import os
+import re
 import sys
 import unittest
 import xml.dom.minidom
@@ -36,6 +38,7 @@ ROOT = os.path.dirname (os.path.dirname (os.path.abspath (__file__)))
 sys.path.insert (0, os.path.join (ROOT, 'python'))
 
 import octave_core
+import octave_settings
 import octave_stats
 
 
@@ -313,6 +316,35 @@ class Described (unittest.TestCase):
                  if href.endswith ('.oxt')]
     self.assertEqual (len (downloads), 1)
     self.assertTrue (downloads[0].endswith ('/' + named), downloads[0])
+
+
+class Settings (unittest.TestCase):
+  """A deadline is read by a role, and the key it maps to must be declared
+  in the schema: a half-finished rename asks the configuration for a name
+  that is not there, which only a run in LibreOffice would show."""
+
+  def setUp (self):
+    self.schema = xml.dom.minidom.parse (
+      os.path.join (ROOT, 'oxt', 'OctaveCalc.xcs'))
+
+  def declared (self):
+    return set (node.getAttribute ('oor:name')
+                for node in self.schema.getElementsByTagName ('prop'))
+
+  def test_every_deadline_is_declared (self):
+    for role, key in octave_settings.SECONDS.items ():
+      self.assertIn (key, self.declared (), role)
+
+  def test_every_role_asked_for_has_a_deadline (self):
+    asked = set ()
+    for name in ('statistics_menu.py', 'addin.py'):
+      with io.open (os.path.join (ROOT, 'python', name),
+                    encoding = 'utf-8') as held:
+        asked.update (re.findall (
+          r"octave_settings\.read \([^,]+, '(\w+)'\)", held.read ()))
+    self.assertTrue (asked)
+    for role in asked:
+      self.assertIn (role, octave_settings.SECONDS, role)
 
 
 class CustomArgs (unittest.TestCase):

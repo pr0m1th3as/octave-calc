@@ -19,7 +19,7 @@
 
 Everything here is testable from a plain Python prompt, which is the point:
 the office-facing files hold no logic worth testing and this file holds no UNO
-call.  It is shared by the Add-In component and the menu-driven workbench.
+call.  It is shared by the Add-In component and the Statistics menu.
 
 Arguments are built as devtools' octave_call takes them: a list in call order
 of numbers, strings, logical values and ranges, each range cell carrying its
@@ -890,7 +890,7 @@ def read_lines (stream, lines):
   lines.put (None)
 
 
-# One server per role, 'cell', 'workbench' and 'statistics', since a formula
+# One server per role, 'cell' and 'statistics', since a formula
 # blocks Calc and an analysis may run for minutes: each has its own deadline.
 # The Statistics menu alone runs without a sandbox, its functions coming from
 # the extension and never from the document.
