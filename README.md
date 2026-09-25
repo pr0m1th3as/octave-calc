@@ -105,16 +105,20 @@ fails, it says so once.
 ## Settings
 
 The settings are under `org.octavecalc.Settings` in Tools > Options > Advanced
-> Open Expert Configuration: the folders holding your own functions, the
-packages to load, the memory and `/tmp` sizes, and the time limits.
+> Open Expert Configuration: the full path of the `octave-cli` to run, the
+folders holding your own functions, the packages to load, the memory and
+`/tmp` sizes, and the time limits. With `Octave` empty, the extension looks
+for `octave-cli` itself; a path given there is the only one tried.
 
 ## Requirements
 
 On the user's machine:
 
 1. LibreOffice, with this extension installed.
-2. GNU Octave, with `octave-cli` on `PATH`, or on Windows in the installer's
-   usual place, and the Octave packages the user's functions rely on.
+2. GNU Octave, and the Octave packages the user's functions rely on. Its
+   `octave-cli` is found on `PATH`, on Windows in the installer's usual
+   place, on macOS where Homebrew or MacPorts put it, or wherever the
+   `Octave` setting says.
 3. The Octave package `devtools`, version 0.2.1 or later, which runs the
    server and its sandbox.
 4. The Octave package `statistics`, which every analysis in the menu loads,

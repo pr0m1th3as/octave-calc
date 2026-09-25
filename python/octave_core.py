@@ -61,6 +61,11 @@ WINDOWS_OCTAVE = (
   os.path.join ('C:\\', 'octave-ci', 'octave-*', 'mingw64', 'bin',
                 'octave-cli.exe'))
 
+# Where Homebrew, on Apple and on Intel processors, and MacPorts put Octave,
+# none of them on the PATH a program started from the Dock has
+MAC_OCTAVE = ('/opt/homebrew/bin/octave-cli', '/usr/local/bin/octave-cli',
+              '/opt/local/bin/octave-cli')
+
 # A bare function name, or a namespaced or static-method one: mean, geom.area,
 # ClassName.method.  Anything else never reaches the interpreter.
 NAME_RE = re.compile (r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$')
@@ -169,9 +174,13 @@ def version ():
 VERSION = version ()
 
 
-def octave ():
-  """Absolute path to an Octave interpreter, or None.  On Windows, where the
-  installer puts Octave on no PATH, the newest one in the usual places."""
+def octave (path = ''):
+  """Absolute path to an Octave interpreter, or None.  PATH, the Octave
+  setting, is the only one tried where it is given.  Otherwise the PATH, then
+  on Windows, where the installer puts Octave on no PATH, the newest one in
+  the usual places, and on macOS the usual places."""
+  if (path):
+    return path if (os.path.isabs (path) and runnable (path)) else None
   for name in OCTAVE_CANDIDATES:
     found = shutil.which (name)
     if (found):
@@ -182,7 +191,16 @@ def octave ():
       found.extend (glob.glob (pattern))
     if (found):
       return max (found, key = version_key)
+  if (sys.platform == 'darwin'):
+    for candidate in MAC_OCTAVE:
+      if (runnable (candidate)):
+        return candidate
   return None
+
+
+def runnable (path):
+  """True when PATH is a file this user may run."""
+  return os.path.isfile (path) and os.access (path, os.X_OK)
 
 
 def version_key (path):
@@ -567,12 +585,53 @@ def iso_date (date):
   return '%04d-%02d-%02d' % (date.Year, date.Month, date.Day)
 
 
-def octave_problem ():
-  """Why no Octave can run on this machine, or None.  Whether it runs in a
-  sandbox is the server's to say."""
-  if (not octave ()):
-    return 'no octave-cli was found.'
-  return None
+def octave_problem (path = ''):
+  """Why no Octave can run on this machine, or None.  PATH is the Octave
+  setting, empty where none is given, and a wrong one is never passed over
+  for another Octave.  Whether it runs in a sandbox is the server's to say."""
+  if (path and not os.path.isabs (path)):
+    return ('the Octave setting, %(path)s, is not a full path.'
+            % {'path': path})
+  if (octave (path)):
+    return None
+  if (path):
+    return ('the Octave setting, %(path)s, is not a program that can run.'
+            % {'path': path})
+  return 'no octave-cli was found.'
+
+
+# What a cell says where no Octave can run, each one whole.  Calc reruns no
+# formula when a setting changes, so each ends with how to rerun it.
+CELL_NO_OCTAVE = ('%(why)s  Install GNU Octave or set the Octave path in '
+                  'Expert Configuration, then press %(keys)s.')
+
+CELL_WRONG_SETTING = ('%(why)s  Fix the Octave path in Expert Configuration, '
+                      'then press %(keys)s.')
+
+
+def recalculate_keys ():
+  """The keys that recalculate every formula: Cmd in place of Ctrl on
+  macOS."""
+  return 'Cmd+Shift+F9' if (sys.platform == 'darwin') else 'Ctrl+Shift+F9'
+
+
+def options_menu ():
+  """The menu path to LibreOffice's settings: Preferences under the
+  application menu on macOS."""
+  if (sys.platform == 'darwin'):
+    return 'LibreOffice > Preferences'
+  return 'Tools > Options'
+
+
+def cell_problem (path = ''):
+  """Why no cell can run on this machine, as a cell says it, or None.  PATH
+  is the Octave setting, empty where none is given."""
+  problem = octave_problem (path)
+  if (problem is None):
+    return None
+  if (path):
+    return CELL_WRONG_SETTING % {'why': problem, 'keys': recalculate_keys ()}
+  return CELL_NO_OCTAVE % {'why': problem, 'keys': recalculate_keys ()}
 
 
 def sandbox_refusal (state, reason):
@@ -651,8 +710,10 @@ PROBE = ('normpdf', [{'type': 'number', 'value': 0.0}])
 # What the first run says, each one whole: a sentence spliced together from
 # a frame and a clause cannot be translated, and the reason a sandbox gives
 # is the server's words, carried through as they are.
-NO_OCTAVE = ('No Octave was found: %(why)s  Install GNU Octave, or put '
-             'octave-cli on the PATH this machine starts LibreOffice with.')
+NO_OCTAVE = ('No Octave was found: %(why)s  Install GNU Octave, or give the '
+             'full path of its octave-cli as Octave under '
+             'org.octavecalc.Settings, in %(menu)s > Advanced > Open '
+             'Expert Configuration.')
 
 CANNOT_RUN = ('Octave was found, but an analysis cannot run here: '
               '%(why)s.')
@@ -682,9 +743,10 @@ def first_run (settings):
   anyway.
 
   SETTINGS is what octave_settings.read gives, the packages among them."""
-  problem = octave_problem ()
+  problem = octave_problem (settings.get ('octave', ''))
   if (problem):
-    return [NO_OCTAVE % {'why': problem.capitalize ()}]
+    return [NO_OCTAVE % {'why': problem[:1].upper () + problem[1:],
+                         'menu': options_menu ()}]
   found = []
   try:
     runner = server ('statistics', settings)
@@ -742,7 +804,8 @@ class Server:
   or been stopped.
 
   SETTINGS holds 'folders' and 'packages', lists, and 'memory', 'tmp' and
-  'seconds', numbers: the budgets in gigabytes and the deadline.  With
+  'seconds', numbers: the budgets in gigabytes and the deadline.  Its
+  'octave', where given and not empty, is the Octave to run.  With
   SANDBOX_ONLY, as for cells, it evaluates nothing unless the server reports
   its sandbox active; STATE and REASON hold what it reported."""
 
@@ -807,20 +870,21 @@ class Server:
       self.errors = None
 
   def _start (self):
-    problem = octave_problem ()
+    binary = self.settings.get ('octave', '')
+    problem = octave_problem (binary)
     if (problem):
       raise RuntimeError (problem)
+    binary = octave (binary)
     self.stop ()
     if (user_manager ()):
       Server.started += 1
       self.unit = 'octave-calc-%d-%d' % (os.getpid (), Server.started)
       inherited = {name: os.environ[name] for name in PASSED
                    if name in os.environ}
-      command = launch_command (octave (), self.settings, self.unit,
-                                inherited)
+      command = launch_command (binary, self.settings, self.unit, inherited)
       env = None
     else:
-      command = launch_command (octave (), self.settings)
+      command = launch_command (binary, self.settings)
       env = dict (os.environ)
       env.update (server_environment (self.settings))
     # A file rather than a pipe, which nothing reads until it is needed and

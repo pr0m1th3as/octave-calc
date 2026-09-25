@@ -129,8 +129,10 @@ def resolve (caller, key):
     raise ValueError ('the range %s is not in this document.' % address)
   rows = read_range (caller, data)
   if (octave_core.range_key (mode, address, rows) != key):
-    raise ValueError ('the range %s has changed since OCTRANGE read it.  '
-                      'Press Ctrl+Shift+F9 to recalculate.' % address)
+    raise ValueError ('the range %(range)s has changed since OCTRANGE read '
+                      'it.  Press %(keys)s to recalculate.'
+                      % {'range': address,
+                         'keys': octave_core.recalculate_keys ()})
   where = data.getRangeAddress ()
   octave_core.remember_range (key, where.StartColumn, where.StartRow, rows)
   return where.StartColumn, where.StartRow, rows
@@ -251,9 +253,12 @@ class Octave (unohelper.Base, XOctave, XAddIn, XServiceInfo):
   # The functions.
   def run (self, caller, name, *args):
     try:
+      settings = octave_settings.read (self.ctx, 'cell')
+      problem = octave_core.cell_problem (settings['octave'])
+      if (problem):
+        return ((octave_core.MESSAGE_PREFIX + problem,),)
       built = octave_core.build_args (args, lambda key: resolve (caller, key))
-      runner = octave_core.server ('cell',
-                                   octave_settings.read (self.ctx, 'cell'))
+      runner = octave_core.server ('cell', settings)
     except Exception as err:
       return ((octave_core.MESSAGE_PREFIX + str (err),),)
     return octave_core.call (name, built, null_date (caller), runner)

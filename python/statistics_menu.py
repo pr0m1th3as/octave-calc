@@ -306,9 +306,11 @@ class Analysis:
       self.post (lambda: self.prompt (answers))
 
   def start (self, options):
-    problem = octave_core.octave_problem ()
+    problem = octave_core.octave_problem (self.settings ()['octave'])
     if (problem):
-      self.message (sentence (problem))
+      self.message (octave_core.NO_OCTAVE
+                    % {'why': sentence (problem),
+                       'menu': octave_core.options_menu ()})
       return
     self.first_run ()
     if ('InputRange' in options and self.command):

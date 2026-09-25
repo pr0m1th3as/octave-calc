@@ -9,6 +9,10 @@
                       xml:lang="en-US">
  <templates/>
  <component>
+  <prop oor:name="Octave" oor:type="xs:string">
+   <info><desc>Full path of the octave-cli program to run. Empty: look for it on the PATH and in the usual places.</desc></info>
+   <value/>
+  </prop>
   <!-- An empty list, not an absent value: Expert Configuration reads a list
        before editing it, and an absent value cannot be read as one, so the
        entry would refuse to open. -->

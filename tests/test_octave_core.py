@@ -35,6 +35,8 @@ import tempfile
 import types
 import unittest
 
+from unittest import mock
+
 sys.path.insert (0, os.path.join (os.path.dirname (os.path.dirname (
   os.path.abspath (__file__))), 'python'))
 
@@ -629,6 +631,132 @@ class VersionKey (unittest.TestCase):
 
   def test_no_version (self):
     self.assertEqual (octave_core.version_key ('C:\\octave\\bin'), [])
+
+
+class OctaveSetting (unittest.TestCase):
+  """The Octave setting names the one program run, and a wrong one is
+  refused rather than passed over for another Octave."""
+
+  def setUp (self):
+    self.folder = tempfile.TemporaryDirectory ()
+    self.program = os.path.join (self.folder.name, 'octave-cli')
+    with open (self.program, 'w') as made:
+      made.write ('#!/bin/sh\n')
+    os.chmod (self.program, 0o755)
+    self.missing = os.path.join (self.folder.name, 'no-such-octave-cli')
+
+  def tearDown (self):
+    self.folder.cleanup ()
+
+  def test_given_path_is_used (self):
+    self.assertEqual (octave_core.octave (self.program), self.program)
+    self.assertIsNone (octave_core.octave_problem (self.program))
+
+  def test_empty_searches (self):
+    self.assertEqual (octave_core.octave (''), octave_core.octave ())
+
+  def test_wrong_path_is_not_passed_over (self):
+    self.assertIsNone (octave_core.octave (self.missing))
+
+  def test_relative_path (self):
+    self.assertEqual (octave_core.octave_problem ('bin/octave-cli'),
+                      'the Octave setting, bin/octave-cli, is not a full '
+                      'path.')
+
+  def test_missing_program (self):
+    self.assertEqual (octave_core.octave_problem (self.missing),
+                      'the Octave setting, %s, is not a program that can '
+                      'run.' % self.missing)
+
+  @unittest.skipIf (sys.platform == 'win32', 'no execute bit on Windows')
+  def test_program_not_executable (self):
+    os.chmod (self.program, 0o644)
+    self.assertEqual (octave_core.octave_problem (self.program),
+                      'the Octave setting, %s, is not a program that can '
+                      'run.' % self.program)
+
+  def test_folder_is_not_a_program (self):
+    self.assertEqual (octave_core.octave_problem (self.folder.name),
+                      'the Octave setting, %s, is not a program that can '
+                      'run.' % self.folder.name)
+
+  def test_mac_usual_places (self):
+    with mock.patch.object (octave_core.sys, 'platform', 'darwin'), \
+         mock.patch.object (octave_core.shutil, 'which', return_value = None), \
+         mock.patch.object (octave_core, 'MAC_OCTAVE',
+                            (self.missing, self.program)):
+      self.assertEqual (octave_core.octave (), self.program)
+
+  def test_first_run_names_the_setting (self):
+    with mock.patch.object (octave_core.sys, 'platform', 'linux'):
+      self.assertEqual (
+        octave_core.first_run (settings (octave = self.missing)),
+        ['No Octave was found: The Octave setting, %s, is not a program '
+         'that can run.  Install GNU Octave, or give the full path of its '
+         'octave-cli as Octave under org.octavecalc.Settings, in Tools > '
+         'Options > Advanced > Open Expert Configuration.' % self.missing])
+
+  def test_first_run_names_the_macos_menu (self):
+    with mock.patch.object (octave_core.sys, 'platform', 'darwin'):
+      self.assertEqual (
+        octave_core.first_run (settings (octave = self.missing)),
+        ['No Octave was found: The Octave setting, %s, is not a program '
+         'that can run.  Install GNU Octave, or give the full path of its '
+         'octave-cli as Octave under org.octavecalc.Settings, in '
+         'LibreOffice > Preferences > Advanced > Open Expert '
+         'Configuration.' % self.missing])
+
+  @unittest.skipUnless (octave_core.octave (), 'no octave-cli on this machine')
+  def test_the_given_octave_runs (self):
+    runner = octave_core.Server (settings (octave = octave_core.octave ()),
+                                 sandbox_only = False)
+    try:
+      self.assertEqual (
+        octave_core.call ('plus', [{'type': 'number', 'value': 1.0},
+                                   {'type': 'number', 'value': 1.0}],
+                          runner = runner), ((2.0,),))
+    finally:
+      runner.stop ()
+      octave_core.clear ()
+
+  def test_a_cell_runs_with_the_given_program (self):
+    self.assertIsNone (octave_core.cell_problem (self.program))
+
+  def test_a_cell_is_told_to_correct_the_setting (self):
+    self.assertEqual (octave_core.cell_problem (self.missing),
+                      'the Octave setting, %s, is not a program that can '
+                      'run.  Fix the Octave path in Expert Configuration, '
+                      'then press %s.'
+                      % (self.missing, octave_core.recalculate_keys ()))
+
+  def test_a_cell_is_told_to_install_or_set (self):
+    with mock.patch.object (octave_core.sys, 'platform', 'linux'), \
+         mock.patch.object (octave_core.shutil, 'which', return_value = None):
+      self.assertEqual (octave_core.cell_problem (''),
+                        'no octave-cli was found.  Install GNU Octave or '
+                        'set the Octave path in Expert Configuration, then '
+                        'press Ctrl+Shift+F9.')
+
+  def test_recalculate_keys_on_macos (self):
+    with mock.patch.object (octave_core.sys, 'platform', 'darwin'):
+      self.assertEqual (octave_core.recalculate_keys (), 'Cmd+Shift+F9')
+
+  def test_recalculate_keys_elsewhere (self):
+    with mock.patch.object (octave_core.sys, 'platform', 'win32'):
+      self.assertEqual (octave_core.recalculate_keys (), 'Ctrl+Shift+F9')
+
+  def test_a_server_call_is_told_why (self):
+    runner = octave_core.Server (settings (octave = self.missing),
+                                 sandbox_only = False)
+    try:
+      self.assertEqual (
+        octave_core.call ('plus', [{'type': 'number', 'value': 1.0}],
+                          runner = runner),
+        (('octave-calc: the Octave setting, %s, is not a program that can '
+          'run.' % self.missing,),))
+    finally:
+      runner.stop ()
+      octave_core.clear ()
 
 
 def bits (value):

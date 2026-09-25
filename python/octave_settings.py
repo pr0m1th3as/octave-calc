@@ -76,7 +76,8 @@ def read (ctx, role):
   """The Server settings for ROLE, 'cell' or 'analysis', as
   octave_core.Server takes them."""
   access = opened (ctx, 'com.sun.star.configuration.ConfigurationAccess')
-  return {'folders': list (access.getByName ('Folders') or ()),
+  return {'octave': (access.getByName ('Octave') or '').strip (),
+          'folders': list (access.getByName ('Folders') or ()),
           'packages': list (access.getByName ('Packages') or ()),
           'memory': int (access.getByName ('MemoryGB')),
           'tmp': int (access.getByName ('TmpGB')),
