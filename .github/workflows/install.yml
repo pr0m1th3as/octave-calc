@@ -104,7 +104,10 @@ jobs:
   # Octave, starting a devtools server and its sandbox.
 
   # The official Octave container is Ubuntu 26.04, whose LibreOffice is new
-  # enough, and is given the namespaces the sandbox needs.
+  # enough, and is given the namespaces the sandbox needs.  The check runs as
+  # an ordinary user, as a user's own would: unopkg refuses to install for
+  # root alone, and the sandbox then has no privilege to lean on, so the
+  # runner must allow user namespaces to an unprivileged process.
   cell-linux:
     name: Cell on Linux, Octave 11.3.0
     needs: build
@@ -117,6 +120,9 @@ jobs:
         with:
           name: oxt
           path: dist
+
+      - name: Allow unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Install LibreOffice and devtools, and check the cell
         run: |
@@ -132,9 +138,11 @@ jobs:
               DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                 --no-install-recommends libreoffice-calc-nogui python3-uno \
                 bubblewrap util-linux
-              octave-cli --norc --no-history \
-                --eval "pkg (\"install\", \"-forge\", \"devtools\")"
-              python3 tools/check_cell.py soffice unopkg dist/*.oxt'
+              useradd --create-home calc
+              as_calc="runuser -u calc -- env HOME=/home/calc"
+              $as_calc octave-cli --norc --no-history \
+                --eval "pkg install -forge devtools"
+              $as_calc python3 tools/check_cell.py soffice unopkg dist/*.oxt'
 
   cell-macos:
     name: Cell on macOS, Octave from Homebrew
