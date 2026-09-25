@@ -2,8 +2,9 @@ name: Install
 
 # Builds the package once, since it is the same file on every platform, and
 # installs it into LibreOffice on Linux, Windows and macOS, checking that
-# every part of it was registered.  The unit tests reach no LibreOffice at
-# all, so only this catches a package that installs nowhere.
+# every part of it was registered and what a formula calling Octave shows.
+# The unit tests reach no LibreOffice at all, so only this catches a package
+# that installs nowhere or a cell that cannot run.
 
 on:
   push:
@@ -97,3 +98,106 @@ jobs:
       - name: Install the package and check it
         shell: bash
         run: python tools/check_install.py "$UNOPKG" dist/*.oxt
+
+  # The cell checks run =OCTAVE("plus";1;1) in LibreOffice without a window,
+  # through the whole path a user's formula takes: the Add-In, finding
+  # Octave, starting a devtools server and its sandbox.
+
+  # The official Octave container is Ubuntu 26.04, whose LibreOffice is new
+  # enough, and is given the namespaces the sandbox needs.
+  cell-linux:
+    name: Cell on Linux, Octave 11.3.0
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: oxt
+          path: dist
+
+      - name: Install LibreOffice and devtools, and check the cell
+        run: |
+          set -euo pipefail
+          docker run --rm --volume "$PWD:/work" --workdir /work --user root \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            --security-opt systempaths=unconfined \
+            --cap-add SYS_ADMIN \
+            ghcr.io/gnu-octave/octave:11.3.0 \
+            bash -c 'set -euo pipefail
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+                --no-install-recommends libreoffice-calc-nogui python3-uno \
+                bubblewrap util-linux
+              octave-cli --norc --no-history \
+                --eval "pkg (\"install\", \"-forge\", \"devtools\")"
+              python3 tools/check_cell.py soffice unopkg dist/*.oxt'
+
+  cell-macos:
+    name: Cell on macOS, Octave from Homebrew
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: oxt
+          path: dist
+
+      - name: Install LibreOffice, Octave and devtools
+        run: |
+          set -euo pipefail
+          brew install --cask libreoffice
+          brew install octave
+          octave-cli --norc --no-history \
+            --eval "pkg ('install', '-forge', 'devtools')"
+
+      # With the PATH a program started from the Dock has, so the cell must
+      # find Homebrew's Octave by itself
+      - name: Check the cell
+        run: |
+          app=/Applications/LibreOffice.app/Contents
+          env PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+            "$app/Resources/python" tools/check_cell.py \
+            "$app/MacOS/soffice" "$app/MacOS/unopkg" dist/*.oxt
+
+  # Windows has no sandbox yet, so a cell must refuse to run
+  cell-windows:
+    name: Cell on Windows, no sandbox
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: oxt
+          path: dist
+
+      - name: Install Octave
+        uses: pr0m1th3as/octave-ci/windows@v1
+
+      - name: Install devtools
+        shell: bash
+        run: |
+          octave-launch --no-gui --norc --silent --no-history \
+            --eval "pkg ('install', '-forge', 'devtools')"
+
+      - name: Install LibreOffice
+        run: choco install libreoffice-fresh -y --no-progress
+
+      - name: Check the cell
+        shell: bash
+        run: |
+          program="C:/Program Files/LibreOffice/program"
+          "$program/python.exe" tools/check_cell.py "$program/soffice.exe" \
+            "$program/unopkg.com" dist/*.oxt --refusal
