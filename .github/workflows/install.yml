@@ -1,0 +1,99 @@
+name: Install
+
+# Builds the package once, since it is the same file on every platform, and
+# installs it into LibreOffice on Linux, Windows and macOS, checking that
+# every part of it was registered.  The unit tests reach no LibreOffice at
+# all, so only this catches a package that installs nowhere.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # unoidl-write, and the type libraries it compiles against
+      - name: Install the LibreOffice SDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libreoffice-dev libreoffice-core
+
+      - name: Build
+        run: python3 tools/build_oxt.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oxt
+          path: dist/*.oxt
+          if-no-files-found: error
+
+  install:
+    name: Install on ${{ matrix.name }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-24.04
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: oxt
+          path: dist
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # python3-uno is the loader for the Python components; without it the
+      # package cannot register
+      - name: Install LibreOffice
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libreoffice-calc-nogui python3-uno
+          echo "UNOPKG=unopkg" >> "$GITHUB_ENV"
+
+      # unopkg.com, since unopkg.exe writes nothing to the console
+      - name: Install LibreOffice
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install libreoffice-fresh -y --no-progress
+          echo "UNOPKG=C:/Program Files/LibreOffice/program/unopkg.com" \
+            >> "$GITHUB_ENV"
+
+      - name: Install LibreOffice
+        if: runner.os == 'macOS'
+        run: |
+          brew install --cask libreoffice
+          echo "UNOPKG=/Applications/LibreOffice.app/Contents/MacOS/unopkg" \
+            >> "$GITHUB_ENV"
+
+      - name: Install the package and check it
+        shell: bash
+        run: python tools/check_install.py "$UNOPKG" dist/*.oxt
