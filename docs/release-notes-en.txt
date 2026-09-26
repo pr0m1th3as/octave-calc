@@ -1,21 +1,35 @@
-octave-calc 0.1.0
+octave-calc 0.1.1
 
-The first release.
+  * macOS works: the Statistics menu and formulas both run with
+    LibreOffice from libreoffice.org and Octave from Homebrew.  The Mac App
+    Store version of LibreOffice cannot install the extension.
 
-  * Data > Statistics with GNU Octave: one dialog holding forty-six
-    analyses in four categories, group comparisons, distribution fitting,
-    random numbers and experimental design, and a fifth category that runs
-    one of your own Octave functions the same way.
+  * On macOS, Octave is now found where Homebrew or MacPorts install it,
+    so LibreOffice no longer has to be started from a Terminal.
 
-  * The spreadsheet functions OCTAVE and OCTRANGE, which call an Octave
-    function on the cells of your sheet from a formula.
+  * A new setting, Octave, takes the full path of octave-cli for an Octave
+    installed anywhere else.  It is under org.octavecalc.Settings in
+    Expert Configuration, on the Advanced page of LibreOffice's options.
 
-  * Every call runs in a devtools server, sandboxed where the machine
-    allows it.  Formulas need the sandbox; the menu does not, so the menu
-    should work on Windows, which has no sandbox yet.  That has not been
-    run, and neither has macOS; please say what you find.
+  * A cell that cannot reach Octave now says why and how to fix it.
 
-Needs GNU Octave with the devtools and statistics packages installed.
+  * Where no analysis can run, the Statistics menu says what is missing
+    and opens no dialog; a missing devtools package is named with the
+    command that installs it.
 
-Tested on LibreOffice 25.2 on Linux only.  It declares 7.4 as its
-minimum and has not been run below 25.2.
+  * The Statistics menu needs the statistics package 1.9.3 or later and
+    refuses an older one.
+
+  * Windows: the Statistics menu works.  Formulas are refused, since
+    Windows has no sandbox yet.
+
+  * The licence is stated as GPL version 3 or later, as the source files
+    have always said.
+
+Needs GNU Octave with the devtools package 0.2.1 or later, and statistics
+1.9.3 or later for the Statistics menu.
+
+Tested on LibreOffice 25.2 on Linux, 26.8 on macOS and 26.8 on Windows 10.
+It declares 7.4 as its minimum and has not been run below 25.2.
+
+Thanks to James D. Watson (@burntstore-studio) for the first report from a Mac.

@@ -3,7 +3,7 @@
              xmlns:d="http://openoffice.org/extensions/description/2006"
              xmlns:xlink="http://www.w3.org/1999/xlink">
  <identifier value="io.github.pr0m1th3as.octavecalc"/>
- <version value="0.1.0"/>
+ <version value="0.1.1"/>
  <display-name>
   <name lang="en">Octave for LibreOffice Calc</name>
  </display-name>
