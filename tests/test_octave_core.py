@@ -815,6 +815,12 @@ class OutputRows (unittest.TestCase):
 FUNCTIONS = os.path.join (os.path.dirname (os.path.abspath (__file__)),
                           'functions')
 
+# What the menu says for a devtools older than 0.2.1
+OLD_DEVTOOLS = ('Octave was found, but an analysis cannot run here: the '
+                'Octave server needs devtools 0.2.1 or later.  Install it at '
+                'an Octave prompt with "pkg install devtools", then open this '
+                'menu again.')
+
 # The extension's own Octave functions, which the menu's server reaches
 OCTAVE = os.path.join (os.path.dirname (os.path.dirname (
   os.path.abspath (__file__))), 'octave')
@@ -1021,26 +1027,46 @@ class FirstRun (unittest.TestCase):
     self.assertIn ('pkg install octave_calc_no_such_package', found[0])
     self.assertTrue (found[0].endswith ('.'), found[0])
 
+  def stand_in (self, script):
+    """What the menu says with a shell script in place of octave-cli, run
+    for an Octave that fails before any analysis could run."""
+    with tempfile.TemporaryDirectory () as folder:
+      program = os.path.join (folder, 'octave-cli')
+      with open (program, 'w') as made:
+        made.write ('#!/bin/sh\n' + script)
+      os.chmod (program, 0o755)
+      return self.report (octave = program, packages = ['statistics'])
+
   @unittest.skipIf (sys.platform == 'win32', 'the stand-in is a shell script')
   def test_missing_devtools_is_named_before_anything_is_asked (self):
     """An Octave without devtools, as on the Windows machine: the server
     cannot start, and the message says what to install."""
-    with tempfile.TemporaryDirectory () as folder:
-      program = os.path.join (folder, 'octave-cli')
-      with open (program, 'w') as made:
-        made.write ('#!/bin/sh\n'
-                    'echo "error: package devtools is not installed" >&2\n'
-                    'exit 1\n')
-      os.chmod (program, 0o755)
-      runs, found = self.report (octave = program,
-                                 packages = ['statistics'])
-    self.assertFalse (runs)
     self.assertEqual (
-      found,
-      ['Octave was found, but an analysis cannot run here: the Octave '
-       'server stopped: package devtools is not installed.  Install it at '
-       'an Octave prompt with "pkg install devtools", then open this menu '
-       'again.'])
+      self.stand_in ('echo "error: package devtools is not installed" >&2\n'
+                     'exit 1\n'),
+      (False,
+       ['Octave was found, but an analysis cannot run here: the Octave '
+        'server stopped: package devtools is not installed.  Install it at '
+        'an Octave prompt with "pkg install devtools", then open this menu '
+        'again.']))
+
+  @unittest.skipIf (sys.platform == 'win32', 'the stand-in is a shell script')
+  def test_devtools_refusing_the_sandbox_option_is_too_old (self):
+    """devtools 0.2.0 stops at the option 0.2.1 added."""
+    self.assertEqual (
+      self.stand_in ('echo "error: mcpEval: invalid number of input '
+                     'arguments" >&2\nexit 1\n'),
+      (False, [OLD_DEVTOOLS]))
+
+  @unittest.skipIf (sys.platform == 'win32', 'the stand-in is a shell script')
+  def test_devtools_reporting_no_sandbox_is_too_old (self):
+    """A devtools that starts but reports no sandbox state predates
+    0.2.1."""
+    self.assertEqual (
+      self.stand_in ('read line\n'
+                     'echo \'{"jsonrpc": "2.0", "id": 1, "result": {}}\'\n'
+                     'read line\n'),
+      (False, [OLD_DEVTOOLS]))
 
   def test_an_old_statistics_is_refused_by_name (self):
     with mock.patch.object (octave_core, 'STATISTICS_MINIMUM', '99.0.0'):
@@ -1062,8 +1088,8 @@ class FirstRun (unittest.TestCase):
     self.assertEqual ((runs, found), (False, [octave_core.STATISTICS_UNKNOWN]))
 
   def test_the_minimum_statistics (self):
-    """1.9.0 is the last release that broke compatibility."""
-    self.assertEqual (octave_core.STATISTICS_MINIMUM, '1.9.0')
+    """The one the extension's description names."""
+    self.assertEqual (octave_core.STATISTICS_MINIMUM, '1.9.3')
 
   def test_the_probe_is_a_statistics_function (self):
     """The check proves the package loads rather than assuming it: a core

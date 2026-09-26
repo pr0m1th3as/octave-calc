@@ -121,7 +121,7 @@ On the user's machine:
    `Octave` setting says.
 3. The Octave package `devtools`, version 0.2.1 or later, which runs the
    server and its sandbox.
-4. The Octave package `statistics`, version 1.9.0 or later, which every
+4. The Octave package `statistics`, version 1.9.3 or later, which every
    analysis in the menu loads, and `datatypes` beneath it. The menu refuses
    an older one. The spreadsheet functions need neither.
 5. For cells, a sandbox: on Linux `bwrap` from the `bubblewrap` package and

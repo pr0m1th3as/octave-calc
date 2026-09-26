@@ -712,9 +712,9 @@ PROBE = ('normpdf', [{'type': 'number', 'value': 0.0}])
 VERSION_PROBE = ('octave_calc_pkgversion',
                  [{'type': 'string', 'value': 'statistics'}])
 
-# The oldest statistics the analyses run with: 1.9.0 is the last release that
-# broke compatibility with the ones before it.
-STATISTICS_MINIMUM = '1.9.0'
+# The oldest statistics the analyses run with, as the extension's
+# description says
+STATISTICS_MINIMUM = '1.9.3'
 
 # What the first run says, each one whole: a sentence spliced together from
 # a frame and a clause cannot be translated, and the reason a sandbox gives
