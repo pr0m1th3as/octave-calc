@@ -205,7 +205,7 @@ def runnable (path):
 
 def version_key (path):
   """The last version number in PATH, as numbers, for choosing the newest
-  installation."""
+  installation or comparing a package's version text."""
   found = re.findall (r'(\d+)\.(\d+)\.(\d+)', path)
   return [int (n) for n in found[-1]] if found else []
 
@@ -707,6 +707,15 @@ def failed_warning (runner):
 # package is installed and loadable rather than assumed.
 PROBE = ('normpdf', [{'type': 'number', 'value': 0.0}])
 
+# The version of statistics the server loaded, as text, empty where none is
+# loaded; asked of one of the extension's own functions.
+VERSION_PROBE = ('octave_calc_pkgversion',
+                 [{'type': 'string', 'value': 'statistics'}])
+
+# The oldest statistics the analyses run with: 1.9.0 is the last release that
+# broke compatibility with the ones before it.
+STATISTICS_MINIMUM = '1.9.0'
+
 # What the first run says, each one whole: a sentence spliced together from
 # a frame and a clause cannot be translated, and the reason a sandbox gives
 # is the server's words, carried through as they are.
@@ -718,10 +727,19 @@ NO_OCTAVE = ('No Octave was found: %(why)s  Install GNU Octave, or give the '
 CANNOT_RUN = ('Octave was found, but an analysis cannot run here: '
               '%(why)s.')
 
+STATISTICS_OLD = ('Octave was found, but an analysis cannot run here: '
+                  'statistics %(found)s is installed, and the analyses need '
+                  '%(needed)s or later.  Update it at an Octave prompt with '
+                  '"pkg install statistics", then open this menu again.')
+
+STATISTICS_UNKNOWN = ('Octave was found, but an analysis cannot run here: '
+                      'the version of the statistics package could not be '
+                      'read.')
+
 CANNOT_RUN_MISSING = ('Octave was found, but an analysis cannot run here: '
                       '%(why)s.  Install it at an Octave prompt with '
-                      '"pkg install -forge %(package)s", then open this '
-                      'menu again.')
+                      '"pkg install %(package)s", then open this menu '
+                      'again.')
 
 NO_SANDBOX = ('The sandbox is not running here.  The Statistics menu works '
               'without it, and every analysis of its own with it.  Cells '
@@ -736,31 +754,41 @@ NO_SANDBOX_BECAUSE = ('The sandbox is not running here: %(why)s.  The '
 
 
 def first_run (settings):
-  """What stops the Statistics menu working on this machine, and what merely
-  limits it, one sentence each, empty where everything is in place.  Only a
-  running server can answer for devtools, the packages and the sandbox, so
-  this asks one to start: the cost the first analysis of a session pays
-  anyway.
+  """Whether an analysis can run on this machine, and what stops it or merely
+  limits it, one sentence each: (True, []) where everything is in place.
+  Only a running server can answer for devtools, the packages, the version
+  of statistics and the sandbox, so this asks one to start: the cost the
+  first analysis of a session pays anyway.
 
-  SETTINGS is what octave_settings.read gives, the packages among them."""
+  SETTINGS is what octave_settings.read gives, the packages among them and
+  the extension's own folder among the folders."""
   problem = octave_problem (settings.get ('octave', ''))
   if (problem):
-    return [NO_OCTAVE % {'why': problem[:1].upper () + problem[1:],
-                         'menu': options_menu ()}]
+    return (False, [NO_OCTAVE % {'why': problem[:1].upper () + problem[1:],
+                                 'menu': options_menu ()}])
   found = []
   try:
     runner = server ('statistics', settings)
     runner.call (PROBE[0], PROBE[1])
+    loaded = output_rows (runner.call (VERSION_PROBE[0],
+                                       VERSION_PROBE[1])[0])[0][0]
   except Exception as err:
     said = str (err).rstrip ('.')
-    named = [name for name in settings['packages'] if name in said]
+    named = [name for name in ['devtools'] + settings['packages']
+             if name in said]
     if (named):
-      return [CANNOT_RUN_MISSING % {'why': said, 'package': named[0]}]
-    return [CANNOT_RUN % {'why': said}]
+      return (False, [CANNOT_RUN_MISSING % {'why': said,
+                                            'package': named[0]}])
+    return (False, [CANNOT_RUN % {'why': said}])
+  if (not version_key (loaded)):
+    return (False, [STATISTICS_UNKNOWN])
+  if (version_key (loaded) < version_key (STATISTICS_MINIMUM)):
+    return (False, [STATISTICS_OLD % {'found': loaded,
+                                      'needed': STATISTICS_MINIMUM}])
   if (runner.state != 'active'):
     found.append (NO_SANDBOX_BECAUSE % {'why': runner.reason.rstrip ('.')}
                   if runner.reason else NO_SANDBOX)
-  return found
+  return (True, found)
 
 
 def cell_value (kind, cell):

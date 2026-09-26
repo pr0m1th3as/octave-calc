@@ -691,20 +691,22 @@ class OctaveSetting (unittest.TestCase):
     with mock.patch.object (octave_core.sys, 'platform', 'linux'):
       self.assertEqual (
         octave_core.first_run (settings (octave = self.missing)),
-        ['No Octave was found: The Octave setting, %s, is not a program '
-         'that can run.  Install GNU Octave, or give the full path of its '
-         'octave-cli as Octave under org.octavecalc.Settings, in Tools > '
-         'Options > Advanced > Open Expert Configuration.' % self.missing])
+        (False,
+         ['No Octave was found: The Octave setting, %s, is not a program '
+          'that can run.  Install GNU Octave, or give the full path of its '
+          'octave-cli as Octave under org.octavecalc.Settings, in Tools > '
+          'Options > Advanced > Open Expert Configuration.' % self.missing]))
 
   def test_first_run_names_the_macos_menu (self):
     with mock.patch.object (octave_core.sys, 'platform', 'darwin'):
       self.assertEqual (
         octave_core.first_run (settings (octave = self.missing)),
-        ['No Octave was found: The Octave setting, %s, is not a program '
-         'that can run.  Install GNU Octave, or give the full path of its '
-         'octave-cli as Octave under org.octavecalc.Settings, in '
-         'LibreOffice > Preferences > Advanced > Open Expert '
-         'Configuration.' % self.missing])
+        (False,
+         ['No Octave was found: The Octave setting, %s, is not a program '
+          'that can run.  Install GNU Octave, or give the full path of its '
+          'octave-cli as Octave under org.octavecalc.Settings, in '
+          'LibreOffice > Preferences > Advanced > Open Expert '
+          'Configuration.' % self.missing]))
 
   @unittest.skipUnless (octave_core.octave (), 'no octave-cli on this machine')
   def test_the_given_octave_runs (self):
@@ -812,6 +814,10 @@ class OutputRows (unittest.TestCase):
 
 FUNCTIONS = os.path.join (os.path.dirname (os.path.abspath (__file__)),
                           'functions')
+
+# The extension's own Octave functions, which the menu's server reaches
+OCTAVE = os.path.join (os.path.dirname (os.path.dirname (
+  os.path.abspath (__file__))), 'octave')
 
 
 def settings (**changes):
@@ -988,6 +994,8 @@ class FirstRun (unittest.TestCase):
   leaving every cause to the first failed run."""
 
   def report (self, **changes):
+    # The menu's own folder, which holds the version probe
+    changes.setdefault ('folders', [FUNCTIONS, OCTAVE])
     try:
       return octave_core.first_run (settings (**changes))
     finally:
@@ -997,7 +1005,8 @@ class FirstRun (unittest.TestCase):
   def test_a_working_machine_is_told_only_what_limits_it (self):
     """Nothing at all where the sandbox runs, and the one line about the
     sandbox where it does not.  Never a complaint about the analyses."""
-    found = self.report (packages = ['statistics'])
+    runs, found = self.report (packages = ['statistics'])
+    self.assertTrue (runs)
     if (state_here () == 'active'):
       self.assertEqual (found, [])
     else:
@@ -1005,11 +1014,56 @@ class FirstRun (unittest.TestCase):
       self.assertIn ('sandbox', found[0])
 
   def test_a_missing_package_is_named_before_anything_is_asked (self):
-    found = self.report (packages = ['octave_calc_no_such_package'])
+    runs, found = self.report (packages = ['octave_calc_no_such_package'])
+    self.assertFalse (runs)
     self.assertEqual (len (found), 1)
     self.assertIn ('octave_calc_no_such_package', found[0])
-    self.assertIn ('pkg install -forge octave_calc_no_such_package', found[0])
+    self.assertIn ('pkg install octave_calc_no_such_package', found[0])
     self.assertTrue (found[0].endswith ('.'), found[0])
+
+  @unittest.skipIf (sys.platform == 'win32', 'the stand-in is a shell script')
+  def test_missing_devtools_is_named_before_anything_is_asked (self):
+    """An Octave without devtools, as on the Windows machine: the server
+    cannot start, and the message says what to install."""
+    with tempfile.TemporaryDirectory () as folder:
+      program = os.path.join (folder, 'octave-cli')
+      with open (program, 'w') as made:
+        made.write ('#!/bin/sh\n'
+                    'echo "error: package devtools is not installed" >&2\n'
+                    'exit 1\n')
+      os.chmod (program, 0o755)
+      runs, found = self.report (octave = program,
+                                 packages = ['statistics'])
+    self.assertFalse (runs)
+    self.assertEqual (
+      found,
+      ['Octave was found, but an analysis cannot run here: the Octave '
+       'server stopped: package devtools is not installed.  Install it at '
+       'an Octave prompt with "pkg install devtools", then open this menu '
+       'again.'])
+
+  def test_an_old_statistics_is_refused_by_name (self):
+    with mock.patch.object (octave_core, 'STATISTICS_MINIMUM', '99.0.0'):
+      runs, found = self.report (packages = ['statistics'])
+    self.assertFalse (runs)
+    self.assertEqual (len (found), 1)
+    self.assertRegex (
+      found[0],
+      r'^Octave was found, but an analysis cannot run here: statistics '
+      r'\d+\.\d+\.\d+ is installed, and the analyses need 99\.0\.0 or '
+      r'later\.  Update it at an Octave prompt with "pkg install '
+      r'statistics", then open this menu again\.$')
+
+  def test_an_unreadable_statistics_version_is_refused (self):
+    probe = ('octave_calc_pkgversion',
+             [{'type': 'string', 'value': 'octave_calc_no_such_package'}])
+    with mock.patch.object (octave_core, 'VERSION_PROBE', probe):
+      runs, found = self.report (packages = ['statistics'])
+    self.assertEqual ((runs, found), (False, [octave_core.STATISTICS_UNKNOWN]))
+
+  def test_the_minimum_statistics (self):
+    """1.9.0 is the last release that broke compatibility."""
+    self.assertEqual (octave_core.STATISTICS_MINIMUM, '1.9.0')
 
   def test_the_probe_is_a_statistics_function (self):
     """The check proves the package loads rather than assuming it: a core

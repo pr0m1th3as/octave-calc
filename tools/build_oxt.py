@@ -83,6 +83,9 @@ ANALYSES = ('anova1', 'anova2', 'chi2gof', 'detectable', 'ff2n', 'fitdist',
             'normality', 'random', 'ranksum', 'sampsize', 'signrank', 'signtest',
             'testpower', 'ttest1', 'ttest2', 'ttestpaired', 'vartestn')
 
+# Called by the menu's first-run check rather than by an analysis
+CHECKS = ('pkgversion',)
+
 HELPERS = ('alpha', 'dof', 'dropped', 'factors', 'groups', 'matched', 'names',
            'pairs', 'sample', 'sampsizepwr', 'tail')
 
@@ -125,7 +128,7 @@ CONTENT.update (dict (
 CONTENT.update (dict (
   ('octave/octave_calc_%s.m' % name,
    os.path.join (HERE, 'octave', 'octave_calc_%s.m' % name))
-  for name in ANALYSES))
+  for name in ANALYSES + CHECKS))
 
 CONTENT.update (dict (
   ('octave/private/octave_calc_%s.m' % name,

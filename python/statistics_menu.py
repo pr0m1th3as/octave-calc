@@ -107,7 +107,8 @@ SIZE_SAYS = 'Size: %(rows)d rows by %(cols)d columns.'
 
 _busy = threading.Lock ()
 
-# The first-run report is said once a session, as the sandbox warning is.
+# Set once the first-run check lets the menu open, so a limit is said once a
+# session, as the sandbox warning is, and a stop until it is put right.
 _CHECKED = []
 
 
@@ -312,7 +313,8 @@ class Analysis:
                     % {'why': sentence (problem),
                        'menu': octave_core.options_menu ()})
       return
-    self.first_run ()
+    if (not self.first_run ()):
+      return
     if ('InputRange' in options and self.command):
       self.launch ({'command': self.command,
                     'input': options['InputRange'],
@@ -327,20 +329,25 @@ class Analysis:
                   'options': octave_stats.option_defaults (command)})
 
   def first_run (self):
-    """Say once a session what is missing or limited here, before anything
-    has been asked for.  Every cause is reported otherwise on the first
-    failed run, one at a time and only after a dialog has been filled in.
-    Starting the server is what that first run would pay anyway."""
+    """Say what is missing or limited here, before anything has been asked
+    for, and whether the menu may go on.  A limit is said once a session
+    and the dialog opens after it.  What stops every analysis is said each
+    time the menu is opened until it is put right, and no dialog follows,
+    since nothing asked of it could run.  Starting the server is what the
+    first analysis would pay anyway."""
     if (_CHECKED):
-      return
-    _CHECKED.append (True)
+      return True
     try:
-      found = octave_core.first_run (self.settings ())
+      runs, found = octave_core.first_run (self.settings ())
     except Exception:
       # A check that cannot run says nothing; the analysis reports it
-      return
+      _CHECKED.append (True)
+      return True
     if (found):
-      self.message ('\n\n'.join (found), 'WARNINGBOX')
+      self.message ('\n\n'.join (found), 'WARNINGBOX' if runs else 'ERRORBOX')
+    if (runs):
+      _CHECKED.append (True)
+    return runs
 
   def settings (self):
     """The server settings an analysis runs with: the user's own folders
